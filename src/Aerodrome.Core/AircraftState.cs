@@ -3,6 +3,12 @@ namespace Aerodrome.Core;
 public enum DeathCause { None, Ground, Ceiling, Gunfire, Fire, StructuralFailure, Fled }
 
 /// <summary>
+/// What a round can go through. There is no health bar in this game: damage reads
+/// through smoke, sound, and how the aircraft handles afterwards.
+/// </summary>
+public enum Component { None, Engine, FuelTank, Wing, Tail, Controls, Pilot }
+
+/// <summary>
 /// Everything about one aircraft that changes tick to tick.
 ///
 /// A class, not a struct: it is allocated once per aircraft and then mutated in
@@ -142,11 +148,29 @@ public sealed class AircraftState
     public double EngineHealth = 1.0;
     public double ControlHealth = 1.0;
     public double WingHealth = 1.0;
+    public double TailHealth = 1.0;
+    public double FuelSystemHealth = 1.0;
+
+    /// <summary>A fuel fire. There is no extinguisher. It is a countdown.</summary>
+    public bool OnFire;
+    public double FireTime;
+
+    public int HitsTaken;
+    /// <summary>What the last round that connected went through. Drives effects.</summary>
+    public Component LastHit;
+
+    /// <summary>
+    /// Nose authority left after tail and control damage. A shot-away tail is what
+    /// turns a fighter into a target.
+    /// </summary>
+    public double EffectiveControl => ControlHealth * TailHealth;
 
     // --- Guns ---
     public int Ammo;
+    /// <summary>0 is cold, 1 is glowing. Jam chance scales with it.</summary>
     public double GunHeat;
     public bool GunJammed;
+    public double JamClearProgress;
     public double FireCooldown;
 
     // --- Life ---

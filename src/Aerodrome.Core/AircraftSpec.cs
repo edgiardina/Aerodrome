@@ -108,11 +108,47 @@ public sealed record AircraftSpec
     /// <summary>Autorotation rate in a spin, rad/s.</summary>
     public double SpinRotationRad { get; init; } = 1.1;
 
+    // --- Geometry for hit detection ---
+    /// <summary>Real length of the airframe, nose to tail.</summary>
+    public double LengthM { get; init; } = 5.71;
+
+    /// <summary>
+    /// How much bigger than life the aircraft is drawn. A Camel is 5.7 m and the
+    /// turn radius is 33 m, so at true scale it is a speck.
+    ///
+    /// This lives in the spec and not in the renderer because hit geometry has to
+    /// match what the player can see. A shot that visually connects must count.
+    /// </summary>
+    public double VisualScale { get; init; } = 3.5;
+
+    /// <summary>Half the length of the hit capsule's spine.</summary>
+    public double HitHalfLengthM => LengthM * VisualScale * 0.40;
+    /// <summary>Radius around that spine. Roughly the airframe's height plus wings.</summary>
+    public double HitRadiusM => LengthM * VisualScale * 0.15;
+
     // --- Guns ---
+    /// <summary>Twin Vickers, and no reloading. Trigger discipline is a skill.</summary>
     public int AmmoRounds { get; init; } = 500;
-    public double RoundsPerSecond { get; init; } = 9.0;
+    public double RoundsPerSecond { get; init; } = 12.0;
     public double MuzzleVelocity { get; init; } = 745.0;
-    public double ConvergenceRangeM { get; init; } = 140.0;
+    /// <summary>Random spread per round, in radians. Keeps long-range fire honest.</summary>
+    public double GunDispersionRad { get; init; } = 0.006;
+    /// <summary>Every Nth round is a tracer.</summary>
+    public int TracerEvery { get; init; } = 5;
+    /// <summary>
+    /// How fast the guns heat while firing. Turned up from a gentler first pass
+    /// because spraying was winning fights: a sloppy pilot with a wide firing cone
+    /// threw twice the lead and got away with it. Heat is the thing that makes a
+    /// short aimed burst better than a long hopeful one.
+    /// </summary>
+    public double GunHeatPerSecond { get; init; } = 0.40;
+    public double GunCoolPerSecond { get; init; } = 0.45;
+    /// <summary>Jam chance per round at full heat. Zero when cold.</summary>
+    public double JamChanceAtFullHeat { get; init; } = 0.055;
+    /// <summary>Seconds to clear a jammed gun.</summary>
+    public double JamClearSeconds { get; init; } = 1.5;
+    /// <summary>Damage one round does to a component, before any multiplier.</summary>
+    public double RoundDamage { get; init; } = 0.085;
 
     /// <summary>Level stall speed at sea level, m/s. Derived, not configured.</summary>
     public double StallSpeedSeaLevel =>
