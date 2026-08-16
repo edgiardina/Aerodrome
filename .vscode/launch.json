@@ -1,0 +1,51 @@
+{
+  // VS Code has real Godot C# debugging. Breakpoints in Aerodrome.Core and in the
+  // game scripts both hit. Install the "C#" extension (ms-dotnettools.csharp).
+  //
+  // "program" MUST be the real Godot executable, not the winget shim in
+  // WinGet\Links. Godot locates its GodotSharp folder relative to its own path,
+  // and through the shim it looks in the wrong place and dies on startup.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Play",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "C:\\Users\\ed_gi\\AppData\\Local\\Microsoft\\WinGet\\Packages\\GodotEngine.GodotEngine.Mono_Microsoft.Winget.Source_8wekyb3d8bbwe\\Godot_v4.7.1-stable_mono_win64\\Godot_v4.7.1-stable_mono_win64.exe",
+      "args": ["--path", "${workspaceFolder}/game", "--resolution", "1600x900"],
+      "cwd": "${workspaceFolder}/game",
+      "console": "internalConsole",
+      "stopAtEntry": false
+    },
+    {
+      "name": "Play (scripted demo + screenshots)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "C:\\Users\\ed_gi\\AppData\\Local\\Microsoft\\WinGet\\Packages\\GodotEngine.GodotEngine.Mono_Microsoft.Winget.Source_8wekyb3d8bbwe\\Godot_v4.7.1-stable_mono_win64\\Godot_v4.7.1-stable_mono_win64.exe",
+      "args": ["--path", "${workspaceFolder}/game", "--resolution", "1600x900"],
+      "cwd": "${workspaceFolder}/game",
+      "env": { "AERODROME_SHOT_DIR": "${workspaceFolder}/shots" },
+      "console": "internalConsole",
+      "stopAtEntry": false
+    },
+    {
+      "name": "Godot editor",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "C:\\Users\\ed_gi\\AppData\\Local\\Microsoft\\WinGet\\Packages\\GodotEngine.GodotEngine.Mono_Microsoft.Winget.Source_8wekyb3d8bbwe\\Godot_v4.7.1-stable_mono_win64\\Godot_v4.7.1-stable_mono_win64.exe",
+      "args": ["--editor", "--path", "${workspaceFolder}/game"],
+      "cwd": "${workspaceFolder}/game",
+      "console": "internalConsole",
+      "stopAtEntry": false
+    },
+    {
+      "name": "Attach to a running Godot",
+      "type": "coreclr",
+      "request": "attach",
+      "processName": "Godot_v4.7.1-stable_mono_win64.exe"
+    }
+  ]
+}

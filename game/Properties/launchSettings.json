@@ -1,0 +1,17 @@
+{
+  "//": "Visual Studio may not surface these. Godot.NET.Sdk builds a Library, and VS greys out Start for library projects. If the Start button stays greyed out, use Debug > Attach to Process instead. See docs/DEVELOPING.md.",
+  "profiles": {
+    "Play": {
+      "commandName": "Executable",
+      "executablePath": "C:\\Users\\ed_gi\\AppData\\Local\\Microsoft\\WinGet\\Packages\\GodotEngine.GodotEngine.Mono_Microsoft.Winget.Source_8wekyb3d8bbwe\\Godot_v4.7.1-stable_mono_win64\\Godot_v4.7.1-stable_mono_win64.exe",
+      "commandLineArgs": "--path \"$(ProjectDir)\" --resolution 1600x900",
+      "workingDirectory": "$(ProjectDir)"
+    },
+    "Godot editor": {
+      "commandName": "Executable",
+      "executablePath": "C:\\Users\\ed_gi\\AppData\\Local\\Microsoft\\WinGet\\Packages\\GodotEngine.GodotEngine.Mono_Microsoft.Winget.Source_8wekyb3d8bbwe\\Godot_v4.7.1-stable_mono_win64\\Godot_v4.7.1-stable_mono_win64.exe",
+      "commandLineArgs": "--editor --path \"$(ProjectDir)\"",
+      "workingDirectory": "$(ProjectDir)"
+    }
+  }
+}
