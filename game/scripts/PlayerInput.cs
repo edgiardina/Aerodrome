@@ -49,6 +49,8 @@ public sealed partial class PlayerInput : Node
     public double? PitchStick { get; private set; }
 
     private bool _reverseArmed = true;
+    private float _padThrottleRate;
+    private bool _clearJamLatch;
 
     /// <summary>Where the pilot is currently aiming the nose, or null for "hold".</summary>
     public double? AimHeading { get; private set; }
@@ -109,7 +111,11 @@ public sealed partial class PlayerInput : Node
             if (FacingHint < 0 && Input.IsActionJustPressed(InputBindings.ClassicRight)) _flatTurnLatch = true;
         }
 
-        double throttleDelta = 0;
+        // Each press of the clear is one pump of the charging handle, so it latches
+        // per press and cannot be held down.
+        if (Input.IsActionJustPressed(InputBindings.ClearJam)) _clearJamLatch = true;
+
+        double throttleDelta = _padThrottleRate;
         if (Input.IsActionPressed(InputBindings.ThrottleUp)) throttleDelta += 1;
         if (Input.IsActionPressed(InputBindings.ThrottleDown)) throttleDelta -= 1;
         Throttle = Math.Clamp(Throttle + throttleDelta * ThrottleRatePerSecond * delta, 0.0, 1.0);
@@ -135,15 +141,28 @@ public sealed partial class PlayerInput : Node
             return;
         }
 
-        float raw = -Input.GetJoyAxis(0, JoyAxis.RightY);   // pad up is negative
+        // Pull back for nose up, like a control column and every flight sim ever.
+        // Godot reports the stick pushed forward as negative, so the raw value is
+        // already positive when the stick comes back. No negation.
+        float raw = Input.GetJoyAxis(0, JoyAxis.RightY);
         if (Math.Abs(raw) < 0.16f) raw = 0f;                // deadzone
 
         // Squared response: fine control near center, full authority at the stops.
         PitchStick = Math.Sign(raw) * raw * raw;
 
+        // Left stick vertical is the throttle lever, as a rate so a self-centering
+        // stick still works: hold it forward to wind power on, back to come off it.
+        float throttleAxis = -Input.GetJoyAxis(0, JoyAxis.LeftY);
+        if (Math.Abs(throttleAxis) > 0.20f) _padThrottleRate = throttleAxis;
+        else _padThrottleRate = 0f;
+
+        // Left stick horizontal, whacked over, swaps ends. Require it to be clearly
+        // sideways rather than diagonal, or reaching for throttle would reverse you.
         float lateral = Input.GetJoyAxis(0, JoyAxis.LeftX);
+        bool clearlySideways = Math.Abs(lateral) > Math.Abs(throttleAxis) * 1.5f;
+
         if (Math.Abs(lateral) < ReverseReleaseThreshold) _reverseArmed = true;
-        else if (_reverseArmed && Math.Abs(lateral) > ReverseWhackThreshold)
+        else if (_reverseArmed && clearlySideways && Math.Abs(lateral) > ReverseWhackThreshold)
         {
             _reverseArmed = false;
             _flatTurnLatch = true;
@@ -162,11 +181,13 @@ public sealed partial class PlayerInput : Node
             RollPressed = _rollLatch,
             AileronRollPressed = _aileronLatch,
             FlatTurnPressed = _flatTurnLatch,
+            ClearJamPressed = _clearJamLatch,
         };
 
         _rollLatch = false;
         _aileronLatch = false;
         _flatTurnLatch = false;
+        _clearJamLatch = false;
         return input;
     }
 

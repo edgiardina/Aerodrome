@@ -226,31 +226,90 @@ public class CombatTests
     }
 
     [Fact]
-    public void A_jam_clears_only_if_you_hold_the_action_long_enough()
+    public void A_jam_clears_by_hammering_the_handle_not_by_holding_it()
     {
         var spec = AircraftSpec.CamelArcade;
         var arena = SelfPlay.DefaultArena;
         var rng = new Rng(19);
-        var shooter = Blue(new Vec2(600, 400), 0.0);
         var bullets = new BulletField();
 
+        // Holding the button down forever is one pump and then nothing.
+        var holder = Blue(new Vec2(600, 400), 0.0);
+        holder.State.GunJammed = true;
+        holder.Input = new AircraftInput { ThrottleCommand = 1.0, ClearJamPressed = true };
+        for (int i = 0; i < (int)(6 * FlightModel.TickRate); i++)
+            Guns.Step(holder, arena, bullets, 0, FlightModel.FixedDt, ref rng);
+
+        Assert.True(holder.State.GunJammed, "holding the clear must not be enough");
+
+        // Hammering it clears it, and it takes several presses.
+        var pumper = Blue(new Vec2(600, 400), 0.0);
+        pumper.State.GunJammed = true;
+
+        int presses = 0;
+        for (int i = 0; i < (int)(6 * FlightModel.TickRate) && pumper.State.GunJammed; i++)
+        {
+            bool press = i % 12 == 0;          // about 10 pumps a second
+            if (press) presses++;
+            pumper.Input = new AircraftInput { ThrottleCommand = 1.0, ClearJamPressed = press };
+            Guns.Step(pumper, arena, bullets, 0, FlightModel.FixedDt, ref rng);
+        }
+
+        Assert.False(pumper.State.GunJammed, "hammering the handle has to clear it");
+        Assert.InRange(presses, 3, 8);
+        Assert.Equal(0.0, pumper.State.JamClearProgress, 6);
+    }
+
+    [Fact]
+    public void Jam_clearing_progress_bleeds_away_if_you_stop()
+    {
+        var arena = SelfPlay.DefaultArena;
+        var rng = new Rng(21);
+        var bullets = new BulletField();
+        var shooter = Blue(new Vec2(600, 400), 0.0);
         shooter.State.GunJammed = true;
 
-        // A brief tap does nothing.
-        shooter.Input = new AircraftInput { ThrottleCommand = 1.0, ClearJamPressed = true };
-        for (int i = 0; i < 20; i++) Guns.Step(shooter, arena, bullets, 0, FlightModel.FixedDt, ref rng);
-        Assert.True(shooter.State.GunJammed);
+        // Two pumps, then give up.
+        for (int p = 0; p < 2; p++)
+        {
+            shooter.Input = new AircraftInput { ThrottleCommand = 1.0, ClearJamPressed = true };
+            Guns.Step(shooter, arena, bullets, 0, FlightModel.FixedDt, ref rng);
+            shooter.Input = AircraftInput.Coast(1.0);
+            Guns.Step(shooter, arena, bullets, 0, FlightModel.FixedDt, ref rng);
+        }
 
-        // Letting go resets the progress. No free partial credit.
+        double afterTwo = shooter.State.JamClearProgress;
+        Assert.True(afterTwo > 0.3);
+
         shooter.Input = AircraftInput.Coast(1.0);
-        Guns.Step(shooter, arena, bullets, 0, FlightModel.FixedDt, ref rng);
-        Assert.Equal(0.0, shooter.State.JamClearProgress, 6);
-
-        shooter.Input = new AircraftInput { ThrottleCommand = 1.0, ClearJamPressed = true };
-        for (int i = 0; i < (int)(spec.JamClearSeconds * FlightModel.TickRate) + 4; i++)
+        for (int i = 0; i < (int)(2 * FlightModel.TickRate); i++)
             Guns.Step(shooter, arena, bullets, 0, FlightModel.FixedDt, ref rng);
 
-        Assert.False(shooter.State.GunJammed);
+        Assert.True(shooter.State.GunJammed);
+        Assert.Equal(0.0, shooter.State.JamClearProgress, 6);
+    }
+
+    [Fact]
+    public void The_AI_can_clear_its_own_jams()
+    {
+        // The AI had no way to work a jam either, so gun heat was quietly a
+        // one-sided punishment: an AI that jammed stayed disarmed for the round.
+        var arena = SelfPlay.DefaultArena;
+        var match = Match.Duel(arena, AircraftSpec.CamelArcade, seed: 5);
+        var pilot = new PilotAi(AiSkill.Veteran, 3);
+
+        var self = match.Combatants[0];
+        var enemy = match.Combatants[1];
+        self.State.GunJammed = true;
+
+        var rng = new Rng(13);
+        for (int i = 0; i < (int)(5 * FlightModel.TickRate) && self.State.GunJammed; i++)
+        {
+            self.Input = pilot.Fly(self, enemy, arena, FlightModel.FixedDt);
+            Guns.Step(self, arena, match.Bullets, 0, FlightModel.FixedDt, ref rng);
+        }
+
+        Assert.False(self.State.GunJammed);
     }
 
     [Fact]

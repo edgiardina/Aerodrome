@@ -43,6 +43,7 @@ public sealed class PilotAi
     private double _behaviourHeld;
     private double _sinceDecision;
     private double _aimError;
+    private double _jamPumpTimer;
     private double _scissorsTimer;
     private int _scissorsSide = 1;
 
@@ -194,7 +195,12 @@ public sealed class PilotAi
         if (emergency) { throttle = 1.0; preferFlatTurn = false; }
 
         bool fire = ShouldFire(self, targetPos, targetVel);
-        return Steer(s, spec, desired, throttle, fire, preferFlatTurn, emergency);
+        var command = Steer(s, spec, desired, throttle, fire, preferFlatTurn, emergency);
+
+        // Work a jam the same way the player has to: pump the handle. Without this
+        // the AI's guns stay jammed for the rest of the round, which quietly turned
+        // gun heat into a one-sided punishment.
+        return command with { ClearJamPressed = WorkTheJam(s) };
     }
 
     /// <summary>
@@ -239,6 +245,22 @@ public sealed class PilotAi
             return new AircraftInput { ThrottleCommand = throttle, HeadingCommand = desired, RollPressed = true, FireHeld = fire };
 
         return new AircraftInput { ThrottleCommand = throttle, HeadingCommand = desired, FireHeld = fire };
+    }
+
+    /// <summary>
+    /// Hammer the charging handle when jammed. Pulsed rather than held, because
+    /// only rising edges count, and paced by skill so a Rookie is slower at it.
+    /// </summary>
+    private bool WorkTheJam(AircraftState s)
+    {
+        if (!s.GunJammed) { _jamPumpTimer = 0; return false; }
+
+        _jamPumpTimer += FlightModel.FixedDt;
+        double interval = 0.10 + Skill.ReactionDelayS * 0.35;
+        if (_jamPumpTimer < interval) return false;
+
+        _jamPumpTimer = 0;
+        return true;
     }
 
     private bool ShouldFire(Combatant self, Vec2 targetPos, Vec2 targetVel)

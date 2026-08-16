@@ -116,17 +116,33 @@ before it will fire again, so it is a deliberate whack, not something you hold.
 
 | Action | Mouse and keyboard | Controller | Classic (press `C`) |
 |---|---|---|---|
-| Pitch | Move the mouse | Right stick up/down | Numpad 8-way |
+| Pitch | Move the mouse | Right stick: **pull back for nose up** | Numpad 8-way, or d-pad |
+| Throttle | `W` / `S` | Left stick up and down | `+` / `-` |
 | Flat turn (swap ends) | `A` or middle mouse | Whack left stick left or right, or `A` | The arrow opposite your facing |
-| Throttle | `W` / `S` | Triggers | `+` / `-` |
-| Guns | Left mouse | Right shoulder | `Space` |
+| Guns | Left mouse | Right trigger | `Space` |
+| **Clear a gun jam** | `X`, hammered | Right bumper, hammered | `X` |
 | Roll upright | Right mouse | B | `Ins` |
-| Aileron roll | `Q` | X | |
-| Near / Far view | `V` | Left shoulder | `V` |
+| Aileron roll | `Q` | X button | |
+| Near / Far view | `V` | Left bumper | `V` |
+| Classic 8-way toggle | `C` | Y | `C` |
 | Opponent skill | `1` / `2` / `3` | | |
-| Restart | `R` | | `R` |
-| Switch control scheme | `F2` | | `F2` |
+| Restart | `R` | Start | `R` |
+| Switch control scheme | `F2` | Back | `F2` |
 | Frame graph | `F3` | | `F3` |
 
-Guns fall off hard past about 90 m and are nearly useless by 320 m, so a long
-burst on the merge is wasted ammunition and gun heat. Get close.
+## Gun jams
+
+Guns heat up while you hold the trigger, and a hot gun jams. Jam risk is zero
+below a quarter heat and then climbs as a square, so short aimed bursts are safe
+and leaning on the trigger is what breaks them.
+
+**A jam is not permanent.** Hammer `X`, or the right bumper, to work the charging
+handle. Each press is one pump, four or so clears it, and progress bleeds away if
+you stop. You cannot hold the button down: only presses count. The HUD shows the
+prompt and a progress bar while you are jammed.
+
+## Range
+
+Guns do full damage inside about 90 m and are nearly useless by 320 m. A long
+burst on the merge is wasted ammunition and gun heat, and it heats the guns
+toward a jam for almost no return. Get close.

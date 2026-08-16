@@ -27,6 +27,7 @@ public static class InputBindings
     public const string ClassicLeft = "classic_left";
     public const string ClassicRight = "classic_right";
 
+    public const string ClearJam = "clear_jam";
     public const string CycleScheme = "cycle_scheme";
     public const string DebugOverlay = "debug_overlay";
     public const string Restart = "restart";
@@ -34,15 +35,21 @@ public static class InputBindings
     public static void Register()
     {
         // --- Throttle -------------------------------------------------------
+        // On a pad this lives on the left stick, read directly as an axis in
+        // PlayerInput, because the triggers are wanted for the guns.
         Action(ThrottleUp, Key.W, Key.KpAdd, Key.Equal);
         Action(ThrottleDown, Key.S, Key.KpSubtract, Key.Minus);
-        Joy(ThrottleUp, JoyAxis.TriggerRight, 1.0f);
-        Joy(ThrottleDown, JoyAxis.TriggerLeft, 1.0f);
 
         // --- Guns -----------------------------------------------------------
+        // Right trigger fires, right bumper works a jam. Keeping the two on
+        // neighbouring fingers matters: a jam happens mid-burst, and the hand that
+        // was pulling the trigger is the hand that has to fix it.
         Action(Fire, Key.Space);
         Mouse(Fire, MouseButton.Left);
-        Pad(Fire, JoyButton.RightShoulder);
+        Joy(Fire, JoyAxis.TriggerRight, 1.0f);
+
+        Action(ClearJam, Key.X);
+        Pad(ClearJam, JoyButton.RightShoulder);
 
         // --- Roll. Prominent on every scheme: the pilot presses it mid-maneuver
         //     under fire, so it never goes on an awkward key.
@@ -63,17 +70,24 @@ public static class InputBindings
         Action(ToggleView, Key.V);
         Pad(ToggleView, JoyButton.LeftShoulder);
 
-        // --- Classic 8-way numpad -------------------------------------------
+        // --- Classic 8-way numpad, and the d-pad, which is the same idea ------
         Action(ClassicUp, Key.Kp8);
         Action(ClassicDown, Key.Kp2);
         Action(ClassicLeft, Key.Kp4);
         Action(ClassicRight, Key.Kp6);
+        Pad(ClassicUp, JoyButton.DpadUp);
+        Pad(ClassicDown, JoyButton.DpadDown);
+        Pad(ClassicLeft, JoyButton.DpadLeft);
+        Pad(ClassicRight, JoyButton.DpadRight);
         Action(ClassicMode, Key.C);
+        Pad(ClassicMode, JoyButton.Y);
 
         // --- Debug ----------------------------------------------------------
         Action(CycleScheme, Key.F2);
+        Pad(CycleScheme, JoyButton.Back);
         Action(DebugOverlay, Key.F3);
         Action(Restart, Key.R);
+        Pad(Restart, JoyButton.Start);
     }
 
     private static void Action(string name, params Key[] keys)

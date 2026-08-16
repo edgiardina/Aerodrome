@@ -170,8 +170,17 @@ public sealed record AircraftSpec
     public double GunCoolPerSecond { get; init; } = 0.45;
     /// <summary>Jam chance per round at full heat. Zero when cold.</summary>
     public double JamChanceAtFullHeat { get; init; } = 0.055;
-    /// <summary>Seconds to clear a jammed gun.</summary>
-    public double JamClearSeconds { get; init; } = 1.5;
+    /// <summary>
+    /// Progress one pump of the charging handle makes toward clearing a jam.
+    ///
+    /// Four presses at 0.26. Deliberately a spam rather than a hold: working a
+    /// jammed Vickers meant hammering the cocking lever, and it makes the player do
+    /// something frantic at exactly the moment they cannot shoot back.
+    /// </summary>
+    public double JamClearPerPress { get; init; } = 0.26;
+
+    /// <summary>How fast clearing progress bleeds away if you stop working at it.</summary>
+    public double JamClearDecayPerSecond { get; init; } = 0.45;
     /// <summary>Damage one round does to a component, before any multiplier.</summary>
     public double RoundDamage { get; init; } = 0.085;
 

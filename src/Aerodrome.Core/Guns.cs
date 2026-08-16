@@ -85,19 +85,32 @@ public static class Guns
             0.0, 1.0);
     }
 
+    /// <summary>
+    /// Working a jam clear. Each press is one pump of the charging handle, and
+    /// progress bleeds away if you stop, so it has to be hammered rather than held.
+    ///
+    /// Only rising edges count. The caller pulses the flag, which means the player's
+    /// button presses and the AI's simulated hammering both land as discrete pumps
+    /// and neither can clear a jam by holding one input down forever.
+    /// </summary>
     private static void StepJam(AircraftState s, AircraftSpec spec, AircraftInput input, double dt)
     {
+        bool pressedNow = input.ClearJamPressed;
+        bool rising = pressedNow && !s.JamClearHeld;
+        s.JamClearHeld = pressedNow;
+
         if (!s.GunJammed) { s.JamClearProgress = 0.0; return; }
 
-        // Clearing a jam means taking a hand off the stick in the middle of a fight.
-        if (!input.ClearJamPressed) { s.JamClearProgress = 0.0; return; }
+        if (rising) s.JamClearProgress += spec.JamClearPerPress;
+        else s.JamClearProgress = Math.Max(0.0, s.JamClearProgress - spec.JamClearDecayPerSecond * dt);
 
-        s.JamClearProgress += dt;
-        if (s.JamClearProgress >= spec.JamClearSeconds)
+        if (s.JamClearProgress >= 1.0)
         {
             s.GunJammed = false;
             s.JamClearProgress = 0.0;
-            s.GunHeat *= 0.4;
+            // Working the action lets the barrels breathe, so a cleared gun is
+            // cooler than it was. Otherwise it would jam again immediately.
+            s.GunHeat *= 0.35;
         }
     }
 

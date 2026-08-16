@@ -251,6 +251,22 @@ public sealed partial class Hud : Control
             y += 60;
         }
 
+        if (s.GunJammed)
+        {
+            // Tell the pilot what to do about it. The mechanic existed for a while
+            // with nothing bound to it and no prompt, which made a jam read as a
+            // permanent loss of the guns rather than something to fight through.
+            Banner(size, y, "GUNS JAMMED", Danger, 26);
+            Banner(size, y + 26, "hammer  X  /  right bumper", Warn, 14);
+
+            const float barW = 210f;
+            float barX = (size.X - barW) * 0.5f;
+            float barY = y + 46;
+            DrawRect(new Rect2(barX, barY, barW, 6), new Color(Dim, 0.35f), true);
+            DrawRect(new Rect2(barX, barY, barW * (float)s.JamClearProgress, 6), Good, true);
+            y += 64;
+        }
+
         if (s.IsSpinning) { Banner(size, y, "SPIN", Danger, 28); y += 30; }
         else if (s.IsStalled) { Banner(size, y, "STALL", Warn, 24); y += 26; }
 

@@ -195,7 +195,10 @@ public sealed class AircraftState
     /// <summary>0 is cold, 1 is glowing. Jam chance scales with it.</summary>
     public double GunHeat;
     public bool GunJammed;
+    /// <summary>0 to 1. Each pump of the charging handle adds to it, and it bleeds away.</summary>
     public double JamClearProgress;
+    /// <summary>Whether the clear input was down last tick, so only rising edges count.</summary>
+    public bool JamClearHeld;
     public double FireCooldown;
 
     // --- Life ---

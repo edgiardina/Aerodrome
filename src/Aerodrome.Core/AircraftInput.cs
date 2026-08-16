@@ -42,7 +42,10 @@ public readonly record struct AircraftInput
     /// </summary>
     public bool FlatTurnPressed { get; init; }
 
-    /// <summary>Edge-triggered. Starts clearing a jammed gun.</summary>
+    /// <summary>
+    /// One pump of the charging handle. Only rising edges count, so this has to be
+    /// hammered to clear a jam and cannot be held down.
+    /// </summary>
     public bool ClearJamPressed { get; init; }
 
     public static AircraftInput Neutral => new() { ThrottleCommand = 0.0 };
