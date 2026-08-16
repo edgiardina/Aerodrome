@@ -8,11 +8,31 @@ ground war, no bombing runs. You start in the air.
 
 ## State
 
-Milestone 0 is done. Milestone 1 is in progress.
+Milestones 0 and 1 are done. Milestone 2 is playable.
 
-- `Aerodrome.Core` flies. 42 tests pass.
-- The Immelmann, the Split-S, the loop, the stall, and the spin all work.
-- The Godot presentation layer does not exist yet.
+- `Aerodrome.Core` flies and fights. 76 tests pass in about 20 seconds.
+- All three reversals work: the Immelmann, the Split-S, and the flat turn.
+  Stall, spin, and spin recovery work.
+- Guns, ballistics, jams, and component damage work.
+- An energy-aware AI at three skill levels flies through the same controls the
+  player uses.
+- The Godot layer runs at over 1300 fps on an RTX 3080 Ti, at 0.75 ms a frame.
+
+Still to do for M2: audio, hit and smoke effects, and a proper round UI.
+
+## The three ways to turn around
+
+This is the heart of the game, and the reason it is not just a side-scroller.
+
+| Maneuver | Costs | Keeps |
+|---|---|---|
+| Immelmann | Speed | Reverses you higher |
+| Split-S | Altitude | Reverses you faster |
+| Flat turn | 1 s with the guns masked, and a fifth of your speed | Every meter of altitude |
+
+The first two both pay in altitude, which is exactly what you are short of when
+somebody has roped you. The flat turn is the answer to that, and it is why all
+three have to exist.
 
 ## Layout
 

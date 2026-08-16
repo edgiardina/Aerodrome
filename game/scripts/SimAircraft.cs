@@ -6,21 +6,37 @@ namespace Aerodrome.Game;
 public enum Team { Player, Enemy }
 
 /// <summary>
-/// One aircraft in the running match: its spec, its live sim state, and the two
-/// render snapshots the view interpolates between.
+/// A Core combatant plus the two render snapshots the view interpolates between.
+/// Everything about fighting lives in Core. This only adds presentation.
 /// </summary>
 public sealed class SimAircraft
 {
-    public required AircraftSpec Spec { get; init; }
-    public required AircraftState State { get; set; }
-    public Team Team { get; init; } = Team.Enemy;
-    public string Callsign { get; init; } = "unknown";
+    public required Combatant Combatant { get; init; }
 
-    public AircraftInput Input;
+    public AircraftSpec Spec => Combatant.Spec;
+    public AircraftState State => Combatant.State;
+    public string Callsign => Combatant.Callsign;
+    public Team Team => Combatant.Team == 0 ? Team.Player : Team.Enemy;
+
+    public AircraftInput Input
+    {
+        get => Combatant.Input;
+        set => Combatant.Input = value;
+    }
 
     private RenderState _previous;
     private RenderState _current;
     private double _propAngle;
+
+    public static SimAircraft Create(AircraftSpec spec, int team, string callsign, AircraftState state)
+    {
+        var sim = new SimAircraft
+        {
+            Combatant = new Combatant { Spec = spec, Team = team, Callsign = callsign, State = state },
+        };
+        sim.PrimeRenderState();
+        return sim;
+    }
 
     public void PrimeRenderState()
     {
@@ -28,7 +44,7 @@ public sealed class SimAircraft
         _previous = _current;
     }
 
-    /// <summary>Call once per sim tick, after the flight model has stepped.</summary>
+    /// <summary>Call once per sim tick, after Core has stepped.</summary>
     public void CaptureRenderState(double dt)
     {
         // The propeller is visual only, so it lives here and not in the sim.

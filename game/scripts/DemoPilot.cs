@@ -33,6 +33,11 @@ public sealed class DemoPilot
     private double _pullLead;
     private bool _fired;
 
+    private SimAircraft? _enemy;
+
+    /// <summary>Give the demo something to shoot at, so captures show tracers.</summary>
+    public void SetEnemy(SimAircraft? enemy) => _enemy = enemy;
+
     public AircraftInput Fly(SimAircraft aircraft, Arena arena)
     {
         var s = aircraft.State;
@@ -84,9 +89,27 @@ public sealed class DemoPilot
     }
 
     /// <summary>Fly level in whichever direction the nose currently points.</summary>
-    private static AircraftInput Hold(AircraftState s) => new()
+    private AircraftInput Hold(AircraftState s) => new()
     {
         ThrottleCommand = 1.0,
         HeadingCommand = Math.Cos(s.Theta) >= 0 ? 0.0 : Math.PI,
+        FireHeld = HasAShot(s),
     };
+
+    /// <summary>Squeeze off a burst whenever the enemy wanders into the sights.</summary>
+    private bool HasAShot(AircraftState s)
+    {
+        if (!s.GunsCanBear) return false;
+
+        // A scripted burst late in the routine, aimed at nothing in particular, so
+        // the capture always has a frame with tracers in it to check against.
+        if (Time is >= 23.0 and < 26.0) return true;
+
+        if (_enemy is null || !_enemy.State.IsAlive) return false;
+
+        Vec2 toEnemy = _enemy.State.Position - s.Position;
+        if (toEnemy.Length > 420) return false;
+
+        return Math.Abs(Angles.Delta(s.Theta, toEnemy.Angle)) < 0.18;
+    }
 }

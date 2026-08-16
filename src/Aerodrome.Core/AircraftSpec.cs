@@ -133,8 +133,13 @@ public sealed record AircraftSpec
     public double MuzzleVelocity { get; init; } = 745.0;
     /// <summary>Random spread per round, in radians. Keeps long-range fire honest.</summary>
     public double GunDispersionRad { get; init; } = 0.006;
-    /// <summary>Every Nth round is a tracer.</summary>
-    public int TracerEvery { get; init; } = 5;
+    /// <summary>
+    /// Every Nth round is a tracer. Real belts were often one in five, but rounds
+    /// cross a 380 m view in half a second, so one in five leaves about two streaks
+    /// on screen and the player cannot read where their fire is going. One in three
+    /// is the smallest change that makes a burst legible.
+    /// </summary>
+    public int TracerEvery { get; init; } = 3;
     /// <summary>
     /// How fast the guns heat while firing. Turned up from a gentler first pass
     /// because spraying was winning fights: a sloppy pilot with a wide firing cone

@@ -18,23 +18,27 @@ public sealed partial class Hud : Control
     private static readonly Color Warn = new(0.98f, 0.72f, 0.20f);
     private static readonly Color Danger = new(0.95f, 0.35f, 0.28f);
     private static readonly Color Good = new(0.45f, 0.82f, 0.55f);
-    private static readonly Color Panel = new(0.05f, 0.06f, 0.07f, 0.55f);
+    // Opaque enough to stay readable against a bright cloud. At 0.55 the telemetry
+    // vanished the moment the aircraft climbed into an overcast.
+    private static readonly Color Panel = new(0.04f, 0.05f, 0.06f, 0.82f);
 
     private SimRunner _sim = null!;
     private ChaseCamera _camera = null!;
     private PlayerInput _input = null!;
+    private Func<AiSkill> _skill = null!;
     private Font _font = null!;
 
     private readonly float[] _frameMs = new float[FrameSamples];
     private int _frameIndex;
     public bool ShowDebug { get; set; } = true;
 
-    public static Hud Create(SimRunner sim, ChaseCamera camera, PlayerInput input) => new()
+    public static Hud Create(SimRunner sim, ChaseCamera camera, PlayerInput input, Func<AiSkill> skill) => new()
     {
         Name = "Hud",
         _sim = sim,
         _camera = camera,
         _input = input,
+        _skill = skill,
         MouseFilter = MouseFilterEnum.Ignore,
         AnchorRight = 1,
         AnchorBottom = 1,
@@ -66,7 +70,7 @@ public sealed partial class Hud : Control
         var s = _sim.Player.State;
         var spec = _sim.Player.Spec;
 
-        DrawRect(new Rect2(14, 14, 236, 214), Panel, true);
+        DrawRect(new Rect2(14, 14, 236, 330), Panel, true);
 
         float y = 36;
         Row("AIRSPEED", $"{s.Airspeed * 3.6:F0} km/h", ref y, SpeedColor(s, spec));
@@ -76,11 +80,23 @@ public sealed partial class Hud : Control
         y += 8;
         Row("ALPHA", $"{Angles.ToDegrees(s.Alpha):F1} deg", ref y, s.IsStalled ? Danger : Dim);
         Row("LOAD", $"{s.LoadFactor:F1} G", ref y, Math.Abs(s.LoadFactor) > spec.GLimit * 0.9 ? Warn : Dim);
-        Row("TURN", $"{Angles.ToDegrees(s.SlewRateRad):F0} deg/s", ref y, Dim);
-        y += 8;
         Row("ATTITUDE", s.IsInverted ? "INVERTED" : "upright", ref y, s.IsInverted ? Warn : Dim);
-        Row("GUNS", s.GunsCanBear ? "clear" : s.IsFlatTurning ? "MASKED" : "JAMMED",
-            ref y, s.GunsCanBear ? Dim : Danger);
+
+        y += 10;
+        Row("AMMO", $"{s.Ammo}", ref y, AmmoColor(s, spec));
+        Row("GUNS", GunStatus(s), ref y, s.GunsCanBear ? Dim : Danger);
+        Bar("HEAT", s.GunHeat, ref y, s.GunHeat > 0.7 ? Danger : s.GunHeat > 0.35 ? Warn : Good);
+
+        y += 10;
+        // No health bar for the aircraft as a whole. Only the parts, because that
+        // is what the pilot actually feels going wrong.
+        Bar("ENGINE", s.EngineHealth, ref y, HealthColor(s.EngineHealth));
+        Bar("WINGS", s.WingHealth, ref y, HealthColor(s.WingHealth));
+        Bar("TAIL", s.TailHealth, ref y, HealthColor(s.TailHealth));
+        Bar("FUEL", s.FuelSystemHealth, ref y, HealthColor(s.FuelSystemHealth));
+
+        y += 8;
+        Row("ENEMY", _skill().Name, ref y, Dim);
         Row("MODE", _input.ClassicMode ? "CLASSIC 8-WAY" : "analog", ref y, Dim);
 
         void Row(string label, string value, ref float rowY, Color color)
@@ -89,7 +105,31 @@ public sealed partial class Hud : Control
             DrawString(_font, new Vector2(238, rowY), value, HorizontalAlignment.Right, 0, 13, color);
             rowY += 19;
         }
+
+        void Bar(string label, double fraction, ref float rowY, Color color)
+        {
+            DrawString(_font, new Vector2(26, rowY), label, HorizontalAlignment.Left, -1, 11, Dim);
+            const float w = 92f;
+            float x = 238 - w;
+            DrawRect(new Rect2(x, rowY - 8, w, 6), new Color(Dim, 0.25f), true);
+            DrawRect(new Rect2(x, rowY - 8, w * (float)Math.Clamp(fraction, 0, 1), 6), color, true);
+            rowY += 19;
+        }
     }
+
+    private static string GunStatus(AircraftState s)
+    {
+        if (s.GunJammed) return s.JamClearProgress > 0 ? "CLEARING..." : "JAMMED";
+        if (s.IsFlatTurning) return "MASKED";
+        if (s.Ammo <= 0) return "EMPTY";
+        return "clear";
+    }
+
+    private static Color AmmoColor(AircraftState s, AircraftSpec spec)
+        => s.Ammo == 0 ? Danger : s.Ammo < spec.AmmoRounds * 0.2 ? Warn : Ink;
+
+    private static Color HealthColor(double health)
+        => health > 0.75 ? Good : health > 0.4 ? Warn : Danger;
 
     private static Color SpeedColor(AircraftState s, AircraftSpec spec)
     {
@@ -170,17 +210,30 @@ public sealed partial class Hud : Control
         var s = _sim.Player.State;
         float y = size.Y * 0.30f;
 
-        if (!s.IsAlive)
+        if (_sim.Outcome != RoundOutcome.InProgress)
         {
-            Banner(size, y, s.Death switch
-            {
-                DeathCause.Ground => "CRASHED",
-                DeathCause.Fled => "FLED THE FIELD",
-                _ => "DOWN",
-            }, Danger, 34);
-            Banner(size, y + 34, "press R to restart", Dim, 14);
+            bool won = _sim.Outcome == RoundOutcome.TeamZeroWins;
+            Banner(size, y, won ? "ENEMY DOWN" : _sim.Outcome == RoundOutcome.Draw ? "NO RESULT" : "YOU ARE DOWN",
+                   won ? Good : Danger, 38);
+
+            if (!won && s.Death != DeathCause.None)
+                Banner(size, y + 38, s.Death switch
+                {
+                    DeathCause.Ground => "flew into the ground",
+                    DeathCause.Fled => "left the field",
+                    DeathCause.Fire => "burned",
+                    DeathCause.StructuralFailure => "the airframe came apart",
+                    DeathCause.Gunfire => "shot down",
+                    _ => "",
+                }, Dim, 15);
+
+            Banner(size, y + 62, $"rounds fired {_sim.Player.Spec.AmmoRounds - s.Ammo}   " +
+                                 $"hits {_sim.Player.Combatant.HitsScored}", Dim, 13);
+            Banner(size, y + 84, "R to fly again        1 / 2 / 3 to change the opponent", Dim, 13);
             return;
         }
+
+        if (!s.IsAlive) return;
 
         if (s.IsFlatTurning)
         {

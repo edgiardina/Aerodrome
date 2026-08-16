@@ -4,28 +4,31 @@ using Aerodrome.Core;
 namespace Aerodrome.Game;
 
 /// <summary>
-/// Owns the match. Steps Aerodrome.Core at exactly one fixed tick per physics frame
-/// and hands the renderer an interpolation factor.
+/// Owns the round. Steps Aerodrome.Core exactly once per physics frame and hands
+/// the renderer an interpolation factor.
 ///
 /// Godot's physics tick rate is set to match FlightModel.TickRate, so this never
-/// runs its own accumulator. Engine.GetPhysicsInterpolationFraction() then gives the
-/// exact blend the renderer needs.
+/// runs its own accumulator. Engine.GetPhysicsInterpolationFraction() then gives
+/// the exact blend the renderer needs.
 /// </summary>
 public sealed class SimRunner
 {
-    public Arena Arena { get; }
+    public Match Match { get; }
+    public Arena Arena => Match.Arena;
     public List<SimAircraft> Aircraft { get; } = new();
     public SimAircraft Player => Aircraft[0];
-    public long Tick { get; private set; }
+    public BulletField Bullets => Match.Bullets;
+    public RoundOutcome Outcome => Match.Outcome;
+    public long Tick => Match.Tick;
 
-    /// <summary>Wall time the last sim step took, in milliseconds. For the debug overlay.</summary>
+    /// <summary>Wall time the last sim step took, in milliseconds. For the overlay.</summary>
     public double LastStepMs { get; private set; }
 
-    public SimRunner(Arena arena) => Arena = arena;
+    public SimRunner(Arena arena, uint seed) => Match = new Match(arena, seed);
 
     public SimAircraft Add(SimAircraft aircraft)
     {
-        aircraft.PrimeRenderState();
+        Match.Add(aircraft.Combatant);
         Aircraft.Add(aircraft);
         return aircraft;
     }
@@ -34,14 +37,9 @@ public sealed class SimRunner
     {
         long start = System.Diagnostics.Stopwatch.GetTimestamp();
 
-        for (int i = 0; i < Aircraft.Count; i++)
-        {
-            var a = Aircraft[i];
-            FlightModel.Step(a.State, a.Spec, a.Input, Arena);
-            a.CaptureRenderState(FlightModel.FixedDt);
-        }
+        Match.Step();
+        foreach (var a in Aircraft) a.CaptureRenderState(FlightModel.FixedDt);
 
-        Tick++;
         LastStepMs = (System.Diagnostics.Stopwatch.GetTimestamp() - start)
                      * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
     }

@@ -24,7 +24,10 @@ public sealed partial class Main : Node3D
     private Hud _hud = null!;
     private Minimap _minimap = null!;
     private readonly List<AircraftView> _views = new();
-    private DronePilot _drone = null!;
+    private BulletView _bulletView = null!;
+    private PilotAi _enemyPilot = null!;
+    private AiSkill _skill = AiSkill.Veteran;
+    private int _roundNumber;
 
     // --- Automated capture, for checking the build without a human at the keyboard.
     // Run: godot --path game -- --shot <dir>
@@ -71,12 +74,12 @@ public sealed partial class Main : Node3D
     private static readonly (double At, string Name, bool FarView)[] CaptureSchedule =
     {
         (1.20, "01-level",            false),
-        (1.85, "02-flat-turn-rollin", false),
-        (2.12, "03-flat-turn-mid",    false),
-        (2.42, "04-flat-turn-rollout",false),
-        (6.60, "05-half-loop",        false),
-        (11.50, "06-far-view",        true),
-        (13.20, "07-recovered",       false),
+        (2.12, "02-flat-turn",        false),
+        (6.60, "03-half-loop",        false),
+        (11.50, "04-far-view",        true),
+        (16.00, "05-dogfight",        false),
+        (21.00, "06-dogfight-late",   false),
+        (23.80, "07-tracers",         false),
     };
 
     private void RunCapture(double delta)
@@ -139,28 +142,22 @@ public sealed partial class Main : Node3D
     {
         foreach (var view in _views) view.QueueFree();
         _views.Clear();
+        _bulletView?.QueueFree();
+
+        _roundNumber++;
+        uint seed = (uint)(_roundNumber * 7919 + 13);
 
         var arena = TestArena();
         var spec = AircraftSpec.CamelArcade;
-        _sim = new SimRunner(arena);
+        _sim = new SimRunner(arena, seed);
 
-        _sim.Add(new SimAircraft
-        {
-            Spec = spec,
-            Team = Team.Player,
-            Callsign = "player",
-            State = AircraftState.Spawn(spec, new Vec2(900, 260), 0.0, 62.0),
-        });
+        _sim.Add(SimAircraft.Create(spec, team: 0, "player",
+            AircraftState.Spawn(spec, new Vec2(700, 300), 0.0, 62.0)));
 
-        _sim.Add(new SimAircraft
-        {
-            Spec = spec,
-            Team = Team.Enemy,
-            Callsign = "drone",
-            State = AircraftState.Spawn(spec, new Vec2(1750, 330), Math.PI, 58.0),
-        });
+        _sim.Add(SimAircraft.Create(spec, team: 1, "red",
+            AircraftState.Spawn(spec, new Vec2(1900, 380), Math.PI, 60.0)));
 
-        _drone = new DronePilot(seed: 7);
+        _enemyPilot = new PilotAi(_skill, seed + 101u);
 
         foreach (var aircraft in _sim.Aircraft)
         {
@@ -169,6 +166,11 @@ public sealed partial class Main : Node3D
             _views.Add(view);
         }
 
+        _bulletView = BulletView.Create(_sim.Bullets, playerTeam: 0);
+        AddChild(_bulletView);
+
+        _autoPilot?.SetEnemy(_sim.Aircraft[1]);
+
         if (_camera is not null) { _camera.QueueFree(); _hud.QueueFree(); _minimap.QueueFree(); }
 
         _camera = ChaseCamera.Create(_sim, arena);
@@ -176,7 +178,7 @@ public sealed partial class Main : Node3D
 
         var ui = new CanvasLayer { Name = "UI" };
         AddChild(ui);
-        _hud = Hud.Create(_sim, _camera, _input);
+        _hud = Hud.Create(_sim, _camera, _input, () => _skill);
         _minimap = Minimap.Create(_sim, _camera);
         ui.AddChild(_hud);
         ui.AddChild(_minimap);
@@ -191,7 +193,10 @@ public sealed partial class Main : Node3D
             : _input.Poll();
 
         for (int i = 1; i < _sim.Aircraft.Count; i++)
-            _sim.Aircraft[i].Input = _drone.Fly(_sim.Aircraft[i], _sim.Arena);
+        {
+            var enemy = _sim.Aircraft[i];
+            enemy.Input = _enemyPilot.Fly(enemy.Combatant, _sim.Player.Combatant, _sim.Arena, delta);
+        }
 
         _sim.Step();
     }
@@ -204,14 +209,37 @@ public sealed partial class Main : Node3D
         if (Input.IsActionJustPressed(InputBindings.DebugOverlay)) _hud.ShowDebug = !_hud.ShowDebug;
         if (Input.IsActionJustPressed(InputBindings.Restart)) { StartMatch(); return; }
 
+        if (_autoPilot is null)
+        {
+            HandleDifficultyKeys();
+            if (_sim is null) return;
+        }
+
         // The one number that keeps a scrolling game smooth: render between ticks,
         // never on them.
         double alpha = Engine.GetPhysicsInterpolationFraction();
 
         _camera.Render(alpha, delta);
         foreach (var view in _views) view.Render(alpha, _camera.VisibleWidthM);
+        _bulletView.Render();
 
         if (_shotDir is not null) RunCapture(delta);
+    }
+
+    /// <summary>Number keys pick the opponent. Takes effect on the next round.</summary>
+    private void HandleDifficultyKeys()
+    {
+        AiSkill? picked =
+            Input.IsKeyPressed(Key.Key1) ? AiSkill.Rookie :
+            Input.IsKeyPressed(Key.Key2) ? AiSkill.Veteran :
+            Input.IsKeyPressed(Key.Key3) ? AiSkill.Ace : null;
+
+        if (picked is not null && picked != _skill)
+        {
+            _skill = picked;
+            GD.Print($"[aerodrome] opponent set to {_skill.Name}, starting a new round");
+            StartMatch();
+        }
     }
 
     // --- World --------------------------------------------------------------
