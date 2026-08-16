@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Aerodrome.Core.Tests/Aerodrome.Core.Tests.csproj" />
+    <Project Path="src/Aerodrome.Core/Aerodrome.Core.csproj" />
+  </Folder>
+</Solution>

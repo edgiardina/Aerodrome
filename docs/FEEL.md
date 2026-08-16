@@ -1,0 +1,130 @@
+# Flight model tuning log
+
+One entry per change to how the aircraft flies. Record the reason, not only the
+number. A number with no reason gets reverted by accident later.
+
+---
+
+## 2026-08-16: first flying model
+
+Built `Aerodrome.Core` with the full energy model. All 42 tests pass.
+
+### What the model does
+
+Forces each tick: thrust along the nose, drag against the airflow, lift
+perpendicular to the airflow, and gravity. Angle of attack is the signed angle
+between the nose and the velocity vector, measured toward the canopy.
+
+The pilot commands a heading. The nose slews toward it. The slew rate comes from
+the G available:
+
+- Below corner speed the wing cannot make the G. The turn is lift limited.
+- Above corner speed the airframe cannot take the G. The turn is structure
+  limited, and the radius grows with speed.
+- The peak sits at corner speed.
+
+The integrator is semi-implicit Euler at a fixed 120 Hz. It is symplectic, so a
+ballistic arc holds its energy. Measured drift over 10 s on a 5.5 km arc is
+0.41 m, which is 7e-5 of the total.
+
+### Finding: a real Sopwith Camel cannot do an Immelmann
+
+This is the main result of the day, and it changed the plan.
+
+The honest Camel numbers are all published or derived from published figures.
+They give a stall speed of 20.2 m/s and a corner speed of 42.9 m/s, which match
+the real aircraft. But the same numbers say a max-G vertical reversal does not
+close.
+
+The reason is drag. A WW1 biplane has `Cd0` near 0.040 across 21.5 m2 of wing.
+At 4.5 G the induced drag adds about as much again. Total drag in a hard turn
+reaches 4500 N against 1370 N of thrust at speed. The aircraft loses energy
+about three times faster than the engine can put it back.
+
+Worked example at 55 m/s and 1500 m:
+
+| Quantity | Value |
+|---|---|
+| Energy height available | 154 m |
+| Loop diameter at the G limit | 140 m |
+| Energy lost to drag over the arc | 109 m |
+| Result | The loop stops about 100 m short |
+
+This matches history. WW1 dogfights were fought in flat turns at low G, not in
+the vertical. The Camel's real advantage was a gyroscopic snap turn to the
+right, not a loop.
+
+### What we did about it
+
+Two specs now exist.
+
+`AircraftSpec.SopwithCamel` keeps every honest number. It is the reference for
+what "correct" means, and the physics tests run against it.
+
+`AircraftSpec.CamelArcade` is what the game ships. It cleans up the airframe and
+adds power until the maneuver set works:
+
+| Field | Honest | Arcade | Reason |
+|---|---|---|---|
+| `Cd0` | 0.040 | 0.018 | Drag was eating the whole energy budget |
+| `OswaldEfficiency` | 0.75 | 0.92 | Cuts induced drag in hard turns |
+| `EnginePowerW` | 96 940 | 149 000 | 130 hp to about 200 hp |
+| `PropEfficiency` | 0.72 | 0.78 | |
+| `StaticThrustN` | 2500 | 4200 | Keeps thrust up at low speed at the top of a loop |
+| `ClMax` | 1.20 | 1.35 | Lowers stall speed, widens the usable band |
+| `GLimit` | 4.5 | 6.0 | Tighter loops, so the loop costs less altitude |
+| `TurnRateScale` | 1.0 | 1.15 | Single knob for arcade snappiness |
+
+Resulting envelope, sea level:
+
+| | Honest | Arcade |
+|---|---|---|
+| Stall speed | 20.2 m/s (73 km/h) | 19.1 m/s (69 km/h) |
+| Corner speed | 42.9 m/s (155 km/h) | 46.7 m/s (168 km/h) |
+| Peak turn rate | 53 deg/s | 76 deg/s |
+| Tightest turn radius | 43 m | 33 m |
+
+### Measured maneuvers, arcade spec
+
+Immelmann from 1500 m at 70 m/s:
+
+| Time | Heading | Altitude | Speed | G |
+|---|---|---|---|---|
+| 0.0 s | 0 deg | 1500 m | 70.0 m/s | 0.0 |
+| 1.5 s | 50 deg | 1533 m | 62.8 m/s | 4.1 |
+| 3.0 s | 95 deg | 1607 m | 49.2 m/s | 2.6 |
+| 5.5 s | 174 deg | 1684 m | 36.1 m/s | 1.2 |
+
+Then the roll rights it. Net: reversed, 185 m higher, 34 m/s slower, upright.
+
+The loop is egg shaped, not round. As the aircraft slows, the rate for a given G
+goes up, so the radius shrinks toward the top. That is correct, and it is what
+makes the maneuver close at all.
+
+Split-S from 1500 m at 45 m/s: reversed, 217 m lower, 76 m/s. Upright with no
+second roll, because the pull started inverted.
+
+Energy height stayed near flat across the Immelmann, 1750 m to 1750 m. Thrust
+and drag almost cancel at this pull rate. That is a good sign: the maneuver is
+neither free nor punishing.
+
+### Finding: inversion starts at the midpoint of the roll
+
+The canopy crosses the horizon halfway through the 0.35 s roll, so the fuel
+starvation clock starts 0.175 s before the roll finishes. A pilot who starts a
+roll and changes their mind has already paid part of the cost.
+
+This came out of a failing test, and the model was right. There is now a test
+that pins the behavior, because it is a design property and not an accident.
+
+### Open items for the next pass
+
+1. Tune against the original in DOSBox. Nothing here has been compared to
+   AAOWITS yet. `TurnRateScale` is the first knob to reach for.
+2. `WeathercockGain` of 3.0 is a guess. It sets the trim angle a sustained pull
+   settles at, which came out near 7 degrees. That looks right, but it is not
+   measured against anything.
+3. The arcade top speed is about 72 m/s (260 km/h). A real Camel did 51 m/s
+   (185 km/h). Decide whether that matters for the feel.
+4. Decide whether other aircraft types scale from the arcade preset or get their
+   own honest-then-tuned pass.

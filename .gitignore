@@ -1,0 +1,23 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+
+# Godot
+.godot/
+game/.godot/
+game/android/
+export_presets.cfg
+
+# Blender backups
+*.blend1
+*.blend2
+
+# Raw third-party downloads. They are large and re-gettable.
+# docs/ASSETS.md records where every one of them came from.
+assets/source/
+
+# Scratch
+*.log
