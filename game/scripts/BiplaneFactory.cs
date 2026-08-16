@@ -22,7 +22,18 @@ public static class BiplaneFactory
     private static readonly Color Wood = new(0.34f, 0.21f, 0.10f);
     private static readonly Color Rubber = new(0.09f, 0.09f, 0.10f);
 
-    public static Node3D Build(Color teamColor, out Node3D propeller)
+    /// <summary>The parts of the airframe that move. The view drives these directly.</summary>
+    public sealed class Parts
+    {
+        public required Node3D Root { get; init; }
+        public required Node3D Propeller { get; init; }
+        public required Node3D AileronLeft { get; init; }
+        public required Node3D AileronRight { get; init; }
+        public required Node3D Elevator { get; init; }
+        public required Node3D Rudder { get; init; }
+    }
+
+    public static Parts Build(Color teamColor)
     {
         var root = new Node3D { Name = "Airframe" };
 
@@ -53,6 +64,18 @@ public static class BiplaneFactory
         Box(root, "Fin", new Vector3(0.75f, 0.85f, 0.08f), new Vector3(-2.95f, 0.55f, 0f), khaki);
         Box(root, "FinStripe", new Vector3(0.30f, 0.60f, 0.10f), new Vector3(-3.05f, 0.55f, 0f), team);
 
+        // Control surfaces. Each hangs off a pivot at its hinge line so the view can
+        // just set a rotation. Watching these move is most of what makes a maneuver
+        // read as flown instead of as a model being rotated.
+        var aileronLeft = Hinged(root, "AileronLeft", new Vector3(-0.32f, 1.05f, 2.15f),
+                                 new Vector3(0.44f, 0.07f, 2.55f), linen);
+        var aileronRight = Hinged(root, "AileronRight", new Vector3(-0.32f, 1.05f, -2.15f),
+                                  new Vector3(0.44f, 0.07f, 2.55f), linen);
+        var elevator = Hinged(root, "Elevator", new Vector3(-3.27f, 0.10f, 0f),
+                              new Vector3(0.40f, 0.07f, 2.60f), linen);
+        var rudder = Hinged(root, "Rudder", new Vector3(-3.32f, 0.55f, 0f),
+                            new Vector3(0.38f, 0.80f, 0.07f), khaki);
+
         // Cockpit.
         Box(root, "Cockpit", new Vector3(0.58f, 0.32f, 0.58f), new Vector3(0.55f, 0.46f, 0f), dark);
         Box(root, "Headrest", new Vector3(0.26f, 0.24f, 0.46f), new Vector3(0.20f, 0.54f, 0f), khaki);
@@ -65,12 +88,32 @@ public static class BiplaneFactory
         Wheel(root, "WheelR", new Vector3(0.85f, -1.05f, -0.62f), rubber);
 
         // Propeller. Its own node so it can spin about the long axis.
-        propeller = new Node3D { Name = "Propeller", Position = new Vector3(2.88f, 0.05f, 0f) };
+        var propeller = new Node3D { Name = "Propeller", Position = new Vector3(2.88f, 0.05f, 0f) };
         root.AddChild(propeller);
         Box(propeller, "Blade", new Vector3(0.07f, 2.55f, 0.20f), Vector3.Zero, wood);
         Box(propeller, "Spinner", new Vector3(0.22f, 0.26f, 0.26f), new Vector3(0.10f, 0f, 0f), cowl);
 
-        return root;
+        return new Parts
+        {
+            Root = root,
+            Propeller = propeller,
+            AileronLeft = aileronLeft,
+            AileronRight = aileronRight,
+            Elevator = elevator,
+            Rudder = rudder,
+        };
+    }
+
+    /// <summary>
+    /// A control surface on a pivot at its hinge line. The mesh hangs aft of the
+    /// pivot, so rotating the pivot swings the trailing edge the way a real one does.
+    /// </summary>
+    private static Node3D Hinged(Node parent, string name, Vector3 hinge, Vector3 size, Material mat)
+    {
+        var pivot = new Node3D { Name = name, Position = hinge };
+        parent.AddChild(pivot);
+        Box(pivot, "Surface", size, new Vector3(-size.X * 0.5f, 0f, 0f), mat);
+        return pivot;
     }
 
     /// <summary>

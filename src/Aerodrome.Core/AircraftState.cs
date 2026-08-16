@@ -46,10 +46,50 @@ public sealed class AircraftState
     public bool IsFlatTurning => FlatTurnProgress > 0;
 
     /// <summary>
-    /// How far round the flat turn has yawed, in radians, 0 to PI. Rendering only.
-    /// At PI/2 the aircraft points straight into the screen.
+    /// Eased progress through the yaw. Smoothstep, so the aircraft rolls in, whips
+    /// through the middle of the turn, and rolls out, instead of pivoting at a
+    /// constant rate like a turret.
     /// </summary>
-    public double YawAngle => FlatTurnProgress * Math.PI;
+    public double FlatTurnYawFraction
+    {
+        get
+        {
+            double p = FlatTurnProgress;
+            return p * p * (3.0 - 2.0 * p);
+        }
+    }
+
+    /// <summary>
+    /// How far round the flat turn has yawed, in radians, 0 to PI.
+    /// At PI/2 the aircraft points straight into the screen and the guns are masked.
+    /// </summary>
+    public double YawAngle => FlatTurnYawFraction * Math.PI;
+
+    /// <summary>
+    /// Bank angle through the turn, added to the roll for rendering. A bell curve:
+    /// level at both ends, hard over in the middle.
+    ///
+    /// It runs off raw progress while the yaw runs off the eased progress, so the
+    /// bank LEADS the turn. That is the right order. You roll first, and the
+    /// aircraft comes round because it is banked.
+    ///
+    /// Negative tips the canopy away from the camera, which is the inside of the
+    /// turn, because the nose swings through -Z.
+    /// </summary>
+    public double FlatTurnBank(AircraftSpec spec)
+        => IsFlatTurning ? -spec.FlatTurnBankPeakRad * Math.Sin(FlatTurnProgress * Math.PI) : 0.0;
+
+    /// <summary>Nose-up pitch held through the turn, in the canopy direction.</summary>
+    public double FlatTurnPitch(AircraftSpec spec)
+        => IsFlatTurning ? spec.FlatTurnPitchRad * Math.Sin(FlatTurnProgress * Math.PI) : 0.0;
+
+    /// <summary>
+    /// Aileron demand through the turn, -1 to 1. It reverses at the halfway point:
+    /// roll in, then roll out. Watching the ailerons flip is what sells the turn as
+    /// flown rather than scripted.
+    /// </summary>
+    public double FlatTurnAileron
+        => IsFlatTurning ? -Math.Cos(FlatTurnProgress * Math.PI) : 0.0;
 
     private double _flatTurnEntrySpeed;
     private double _flatTurnEntryVx;

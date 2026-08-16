@@ -82,6 +82,13 @@ public sealed record AircraftSpec
     public double FlatTurnSpeedCost { get; init; } = 0.22;
     /// <summary>Downward drift during the turn, m/s. The turn is not perfectly coordinated.</summary>
     public double FlatTurnSagMps { get; init; } = 7.0;
+    /// <summary>
+    /// Peak bank angle through the flat turn. A level 180 is a banked turn, not a
+    /// flat skid on rudder alone. This is what makes the maneuver look flown.
+    /// </summary>
+    public double FlatTurnBankPeakRad { get; init; } = 1.13;   // 65 degrees
+    /// <summary>Nose-up pitch held through the turn to stop the bank dropping the nose.</summary>
+    public double FlatTurnPitchRad { get; init; } = 0.12;      // 7 degrees
 
     // --- Inverted flight penalties ---
     /// <summary>Seconds inverted before a gravity-fed engine starts to starve.</summary>

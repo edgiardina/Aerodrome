@@ -9,32 +9,33 @@ namespace Aerodrome.Game;
 /// between the last two of these. A camera or a mesh that reads raw sim state
 /// judders at any refresh rate above the sim rate, and that is the usual reason a
 /// scrolling game "feels off" even at 144 fps.
+///
+/// Transient offsets like the flat turn bank and pitch are already folded into
+/// Theta and Roll here, so the view only ever renders what it is handed.
 /// </summary>
 public readonly struct RenderState
 {
-    public readonly double X, Y;
-    public readonly double Theta;
-    public readonly double RollAngle;
-    public readonly double Yaw;
-    public readonly double PropAngle;
-    public readonly double Airspeed;
-    public readonly bool IsAlive;
+    public double X { get; init; }
+    public double Y { get; init; }
 
-    public RenderState(double x, double y, double theta, double rollAngle, double yaw,
-                       double propAngle, double airspeed, bool isAlive)
-    {
-        X = x; Y = y;
-        Theta = theta;
-        RollAngle = rollAngle;
-        Yaw = yaw;
-        PropAngle = propAngle;
-        Airspeed = airspeed;
-        IsAlive = isAlive;
-    }
+    /// <summary>Nose angle in the screen plane, including any transient pitch.</summary>
+    public double Theta { get; init; }
 
-    public static RenderState Capture(AircraftState s, double propAngle) =>
-        new(s.Position.X, s.Position.Y, s.Theta, s.RollAngle, s.YawAngle,
-            propAngle, s.Airspeed, s.IsAlive);
+    /// <summary>Roll about the long axis, including any transient bank.</summary>
+    public double Roll { get; init; }
+
+    /// <summary>Yaw about world up. Non-zero only during a flat turn.</summary>
+    public double Yaw { get; init; }
+
+    public double PropAngle { get; init; }
+
+    // Control surface demand, -1 to 1.
+    public double Aileron { get; init; }
+    public double Elevator { get; init; }
+    public double Rudder { get; init; }
+
+    public double Airspeed { get; init; }
+    public bool IsAlive { get; init; }
 
     /// <summary>
     /// Blend two ticks. Angles take the short way round, so a heading that crosses
@@ -42,20 +43,25 @@ public readonly struct RenderState
     /// </summary>
     public static RenderState Lerp(in RenderState a, in RenderState b, double t)
     {
-        // The tick a flat turn commits on, yaw resets to 0 while the heading mirrors.
-        // Those two changes cancel out to the same orientation, but interpolating
-        // across them would spin the model. Snap to the new tick instead.
+        // On the tick a flat turn commits, yaw resets to zero while the heading
+        // mirrors and the canopy flips. Those changes cancel to the same orientation,
+        // but interpolating across them would spin the model. Snap instead.
         if (a.Yaw > 0.01 && b.Yaw <= 0.0) return b;
 
-        return new RenderState(
-            a.X + (b.X - a.X) * t,
-            a.Y + (b.Y - a.Y) * t,
-            LerpAngle(a.Theta, b.Theta, t),
-            LerpAngle(a.RollAngle, b.RollAngle, t),
-            a.Yaw + (b.Yaw - a.Yaw) * t,
-            LerpAngle(a.PropAngle, b.PropAngle, t),
-            a.Airspeed + (b.Airspeed - a.Airspeed) * t,
-            b.IsAlive);
+        return new RenderState
+        {
+            X = a.X + (b.X - a.X) * t,
+            Y = a.Y + (b.Y - a.Y) * t,
+            Theta = LerpAngle(a.Theta, b.Theta, t),
+            Roll = LerpAngle(a.Roll, b.Roll, t),
+            Yaw = a.Yaw + (b.Yaw - a.Yaw) * t,
+            PropAngle = LerpAngle(a.PropAngle, b.PropAngle, t),
+            Aileron = a.Aileron + (b.Aileron - a.Aileron) * t,
+            Elevator = a.Elevator + (b.Elevator - a.Elevator) * t,
+            Rudder = a.Rudder + (b.Rudder - a.Rudder) * t,
+            Airspeed = a.Airspeed + (b.Airspeed - a.Airspeed) * t,
+            IsAlive = b.IsAlive,
+        };
     }
 
     private static double LerpAngle(double a, double b, double t)

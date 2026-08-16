@@ -288,6 +288,60 @@ public class ManeuverTests
     }
 
     [Fact]
+    public void The_flat_turn_banks_in_and_rolls_back_out_level()
+    {
+        // A level 180 is a banked turn, not a flat skid on rudder. The bank must be
+        // zero at both ends and hard over in the middle, or the maneuver reads as a
+        // model on a turntable.
+        var spec = AircraftSpec.CamelArcade;
+        var rig = new Rig(spec).Spawn(1200, 800, 0.0, 62.0);
+
+        rig.Tick(new AircraftInput { ThrottleCommand = 1.0, FlatTurnPressed = true });
+
+        double steepest = 0, bankAtQuarter = 0, bankAtEnd = 0;
+        bool aileronReversed = false;
+        double firstAileron = rig.State.FlatTurnAileron;
+
+        while (rig.State.IsFlatTurning && rig.State.IsAlive)
+        {
+            double bank = Math.Abs(rig.State.FlatTurnBank(spec));
+            steepest = Math.Max(steepest, bank);
+
+            if (Math.Abs(rig.State.FlatTurnProgress - 0.25) < 0.01) bankAtQuarter = bank;
+            if (rig.State.FlatTurnAileron * firstAileron < 0) aileronReversed = true;
+
+            bankAtEnd = bank;
+            rig.Tick(new AircraftInput { ThrottleCommand = 1.0 });
+        }
+
+        Assert.InRange(steepest, spec.FlatTurnBankPeakRad * 0.97, spec.FlatTurnBankPeakRad);
+        Assert.True(bankAtQuarter > 0.2, "should already be banking a quarter of the way in");
+        Assert.True(bankAtEnd < steepest * 0.25, "must roll back out before it finishes");
+        Assert.Equal(0.0, rig.State.FlatTurnBank(spec), 9);
+        Assert.True(aileronReversed, "the ailerons must reverse to roll back out");
+    }
+
+    [Fact]
+    public void The_bank_leads_the_yaw()
+    {
+        // You roll first and the aircraft comes round because it is banked. If the
+        // yaw led the bank it would look like a skid.
+        var spec = AircraftSpec.CamelArcade;
+        var rig = new Rig(spec).Spawn(1200, 800, 0.0, 62.0);
+
+        rig.Tick(new AircraftInput { ThrottleCommand = 1.0, FlatTurnPressed = true });
+
+        while (rig.State.IsFlatTurning && rig.State.FlatTurnProgress < 0.3)
+            rig.Tick(new AircraftInput { ThrottleCommand = 1.0 });
+
+        double bankFraction = Math.Abs(rig.State.FlatTurnBank(spec)) / spec.FlatTurnBankPeakRad;
+        double yawFraction = rig.State.FlatTurnYawFraction;
+
+        Assert.True(bankFraction > yawFraction * 2.0,
+            $"bank should be well ahead: bank {bankFraction:F2} vs yaw {yawFraction:F2}");
+    }
+
+    [Fact]
     public void The_flat_turn_takes_about_as_long_as_the_spec_says()
     {
         var spec = AircraftSpec.CamelArcade;

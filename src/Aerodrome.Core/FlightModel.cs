@@ -165,9 +165,12 @@ public static class FlightModel
 
         StepThrottle(s, spec, input, dt);
 
+        // Track the eased yaw, not raw progress, so the flight path and the model
+        // agree. The aircraft rolls in, whips through the middle, and rolls out.
+        double yawFraction = s.FlatTurnYawFraction;
         double speedScale = 1.0 - spec.FlatTurnSpeedCost * p;
-        double vx = s.FlatTurnEntryVx * Math.Cos(p * Math.PI) * speedScale;
-        double vy = s.FlatTurnEntryVy * speedScale - spec.FlatTurnSagMps * Math.Sin(p * Math.PI);
+        double vx = s.FlatTurnEntryVx * Math.Cos(yawFraction * Math.PI) * speedScale;
+        double vy = s.FlatTurnEntryVy * speedScale - spec.FlatTurnSagMps * Math.Sin(yawFraction * Math.PI);
 
         s.Velocity = new Vec2(vx, vy);
         s.Position += s.Velocity * dt;

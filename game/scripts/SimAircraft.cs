@@ -1,3 +1,4 @@
+using System;
 using Aerodrome.Core;
 
 namespace Aerodrome.Game;
@@ -23,7 +24,7 @@ public sealed class SimAircraft
 
     public void PrimeRenderState()
     {
-        _current = RenderState.Capture(State, _propAngle);
+        _current = Capture();
         _previous = _current;
     }
 
@@ -35,8 +36,49 @@ public sealed class SimAircraft
         _propAngle = Angles.Wrap0To2Pi(_propAngle + (12.0 + 90.0 * rpmFraction) * dt);
 
         _previous = _current;
-        _current = RenderState.Capture(State, _propAngle);
+        _current = Capture();
     }
 
     public RenderState Interpolated(double alpha) => RenderState.Lerp(_previous, _current, alpha);
+
+    private RenderState Capture()
+    {
+        var s = State;
+        return new RenderState
+        {
+            X = s.Position.X,
+            Y = s.Position.Y,
+            // Bank and pitch are transient offsets on top of the real orientation.
+            Theta = Angles.Wrap0To2Pi(s.Theta + s.FlatTurnPitch(Spec) * s.CanopySign),
+            Roll = Angles.Wrap0To2Pi(s.RollAngle + s.FlatTurnBank(Spec)),
+            Yaw = s.YawAngle,
+            PropAngle = _propAngle,
+            Aileron = AileronDemand(s),
+            Elevator = ElevatorDemand(s, Spec),
+            Rudder = RudderDemand(s),
+            Airspeed = s.Airspeed,
+            IsAlive = s.IsAlive,
+        };
+    }
+
+    /// <summary>Full deflection through a roll, and reversing through a flat turn.</summary>
+    private static double AileronDemand(AircraftState s)
+    {
+        if (s.IsFlatTurning) return s.FlatTurnAileron;
+        return s.RollRemaining > 0 ? 1.0 : 0.0;
+    }
+
+    /// <summary>Angle of attack is a direct read on how hard the pilot is pulling.</summary>
+    private static double ElevatorDemand(AircraftState s, AircraftSpec spec)
+    {
+        if (s.IsFlatTurning) return 0.55 * Math.Sin(s.FlatTurnProgress * Math.PI);
+        return Math.Clamp(s.Alpha / spec.StallAlphaRad, -1.0, 1.0);
+    }
+
+    /// <summary>Boot full of rudder to hold the flat turn round.</summary>
+    private static double RudderDemand(AircraftState s)
+    {
+        if (!s.IsFlatTurning) return 0.0;
+        return Math.Clamp(Math.Sin(s.FlatTurnProgress * Math.PI) * 1.9, 0.0, 1.0);
+    }
 }

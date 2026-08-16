@@ -172,6 +172,31 @@ takes one. The geometry hides in the Z axis where the player cannot see it, so
 unlike the arcade drag numbers this cheat is invisible. It plays the way the
 original played, which is the point.
 
+### Making it look flown, not scripted
+
+The first version yawed about the world vertical and nothing else. It read as a
+model on a turntable, because rudder alone is not how an aircraft turns. Three
+changes fixed it:
+
+1. **Bank.** A bell curve peaking at 65 degrees, level at both ends. A level 180
+   is a banked turn.
+2. **The bank leads the yaw.** Bank runs off raw progress, yaw runs off a
+   smoothstep of it. So the aircraft rolls first and comes round because it is
+   banked. A quarter of the way in the bank is already past 70 percent while the
+   yaw is barely 10 percent. There is a test that pins the ordering.
+3. **The yaw eases.** Smoothstep, so it rolls in, whips through the middle, and
+   rolls out, rather than pivoting at a constant rate. The velocity projection
+   tracks the same eased curve, so the flight path and the model agree.
+
+Plus real control surfaces on the model: ailerons, elevator, and rudder on their
+own hinges. The ailerons reverse at the halfway point, which is the moment the
+pilot stops rolling in and starts rolling out. That reversal is small and it is
+most of what sells the maneuver.
+
+Surfaces are driven everywhere, not only in the flat turn. Elevator tracks angle
+of attack, so you can see the aircraft pulling. Ailerons go hard over during a
+roll.
+
 ### Bug this found
 
 The first version reported in-plane speed as airspeed. Mid-turn the HUD read

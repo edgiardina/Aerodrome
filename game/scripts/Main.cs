@@ -70,11 +70,13 @@ public sealed partial class Main : Node3D
     /// </summary>
     private static readonly (double At, string Name, bool FarView)[] CaptureSchedule =
     {
-        (1.20, "01-level",       false),
-        (2.10, "02-flat-turn",   false),
-        (6.60, "03-half-loop",   false),
-        (11.50, "04-far-view",   true),
-        (13.20, "05-recovered",  false),
+        (1.20, "01-level",            false),
+        (1.85, "02-flat-turn-rollin", false),
+        (2.12, "03-flat-turn-mid",    false),
+        (2.42, "04-flat-turn-rollout",false),
+        (6.60, "05-half-loop",        false),
+        (11.50, "06-far-view",        true),
+        (13.20, "07-recovered",       false),
     };
 
     private void RunCapture(double delta)
