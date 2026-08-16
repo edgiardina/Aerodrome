@@ -17,12 +17,20 @@ namespace Aerodrome.Game;
 /// </summary>
 public sealed partial class ChaseCamera : Camera3D
 {
-    /// <summary>Visible arena width at rest, in meters.</summary>
-    public const double NearViewWidthM = 380.0;
+    /// <summary>
+    /// Visible arena width at rest, in meters.
+    ///
+    /// Deliberately tight. A wide view showed the enemy long before they were a
+    /// threat, which drained the tension out of a merge and made the minimap and
+    /// the screen-edge markers decorative. At 250 m you see them arrive, the
+    /// aircraft is big enough to read its attitude, and knowing where the other
+    /// one is becomes a thing you have to work at.
+    /// </summary>
+    public const double NearViewWidthM = 250.0;
     /// <summary>Widest the duel framing may pull back before it stops trying.</summary>
-    public const double MaxDuelWidthM = 820.0;
+    public const double MaxDuelWidthM = 520.0;
     /// <summary>Range within which the camera frames both fighters instead of just the player.</summary>
-    public const double FramingRangeM = 560.0;
+    public const double FramingRangeM = 330.0;
     /// <summary>Meters the player may drift before the camera starts to chase.</summary>
     public const double DeadzoneM = 9.0;
 

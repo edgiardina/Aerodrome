@@ -25,6 +25,8 @@ public sealed partial class Main : Node3D
     private Minimap _minimap = null!;
     private readonly List<AircraftView> _views = new();
     private readonly List<DamageEffects> _effects = new();
+    private readonly HashSet<SimAircraft> _wrecked = new();
+    private bool _creditsHeld;
     private BulletView _bulletView = null!;
     private PilotAi _enemyPilot = null!;
     private GameAudio _audio = null!;
@@ -85,6 +87,9 @@ public sealed partial class Main : Node3D
         (28.00, "08-smoking",         false),
         (31.50, "09-burning",         false),
         (34.50, "10-closeup",         false),
+        (37.60, "11-explosion",       false),
+        (39.50, "12-wreck-falling",   false),
+        (43.00, "13-wreck-burning",   false),
     };
 
     private void RunCapture(double delta)
@@ -104,6 +109,19 @@ public sealed partial class Main : Node3D
             player.EngineHealth = 1.0;
             player.AirframeIntegrity = 1.0;
             _camera.ForcedWidthM = 70.0;
+        }
+
+        // Then drop to low level and shoot the player down, so the whole death is
+        // in frame: the burst, the tumble, and the wreck going into the ground.
+        if (_captureTime is > 35.5 and < 35.7)
+        {
+            _camera.ForcedWidthM = 620.0;
+            player.Position = new Vec2(player.Position.X, 175.0);
+        }
+        if (_captureTime is > 37.0 and < 37.2 && player.IsAlive)
+        {
+            player.AirframeIntegrity = 0.0;
+            player.OnFire = true;
         }
 
         if (_nextShot >= CaptureSchedule.Length)
@@ -246,6 +264,11 @@ public sealed partial class Main : Node3D
         _input.CanopySign = player.CanopySign;
 
         if (_input.ConsumeViewToggle()) _camera.ToggleFarView();
+        if (Input.IsKeyPressed(Key.F1) != _creditsHeld)
+        {
+            _creditsHeld = !_creditsHeld;
+            if (_creditsHeld) _hud.ShowCredits = !_hud.ShowCredits;
+        }
         if (Input.IsActionJustPressed(InputBindings.DebugOverlay)) _hud.ShowDebug = !_hud.ShowDebug;
         if (Input.IsActionJustPressed(InputBindings.Restart)) { StartMatch(); return; }
 
@@ -269,7 +292,40 @@ public sealed partial class Main : Node3D
             _effects[i].Render(_sim.Aircraft[i].State, new Vector3((float)rs.X, (float)rs.Y, 0f));
         }
 
+        SpawnWreckage();
+
         if (_shotDir is not null) RunCapture(delta);
+    }
+
+    /// <summary>
+    /// Turn any aircraft that just died into a burning wreck.
+    ///
+    /// Watched here rather than pushed from Core, because a wreck is pure
+    /// presentation and Core should not know it exists. The wreck keeps the
+    /// velocity and attitude the aircraft died with, so it carries on along the
+    /// path it was already flying instead of dropping straight down.
+    /// </summary>
+    private void SpawnWreckage()
+    {
+        for (int i = 0; i < _sim.Aircraft.Count; i++)
+        {
+            var aircraft = _sim.Aircraft[i];
+            if (aircraft.State.IsAlive || _wrecked.Contains(aircraft)) continue;
+
+            _wrecked.Add(aircraft);
+
+            // A pilot who flew into the ground is already there. No falling to do.
+            if (aircraft.State.Death == DeathCause.Fled) continue;
+
+            var state = aircraft.State;
+            var wreck = Wreckage.Create(
+                new Vector3((float)state.Position.X, (float)Math.Max(state.Position.Y, 1.0), 0f),
+                new Vector2((float)state.Velocity.X, (float)state.Velocity.Y),
+                state.Theta,
+                aircraft.Team == Team.Player ? PlayerColor : EnemyColor);
+
+            AddChild(wreck);
+        }
     }
 
     /// <summary>Number keys pick the opponent. Takes effect on the next round.</summary>

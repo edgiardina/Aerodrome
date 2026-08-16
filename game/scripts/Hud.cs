@@ -53,9 +53,51 @@ public sealed partial class Hud : Control
         QueueRedraw();
     }
 
+    /// <summary>
+    /// Attribution. The Sopwith Camel model is CC-BY, which allows commercial use
+    /// but requires a visible credit, so this is an obligation and not a nicety.
+    /// Every row in docs/ASSETS.md that needs crediting belongs here.
+    /// </summary>
+    private static readonly (string What, string Who, string Licence)[] Credits =
+    {
+        ("Sopwith Camel model", "bradacvojtech (Sketchfab)", "CC-BY 4.0"),
+    };
+
+    public bool ShowCredits { get; set; }
+
+    private void DrawCredits(Vector2 size)
+    {
+        const float w = 520f, h = 150f;
+        var box = new Rect2((size.X - w) * 0.5f, size.Y * 0.30f, w, h);
+        DrawRect(box, new Color(0.03f, 0.04f, 0.05f, 0.92f), true);
+        DrawRect(box, Border, false, 1.2f);
+
+        float y = box.Position.Y + 32;
+        DrawString(_font, new Vector2(box.Position.X, y), "CREDITS",
+                   HorizontalAlignment.Center, w, 18, Ink);
+        y += 34;
+
+        foreach (var (what, who, licence) in Credits)
+        {
+            DrawString(_font, new Vector2(box.Position.X + 24, y), what,
+                       HorizontalAlignment.Left, -1, 13, Dim);
+            DrawString(_font, new Vector2(box.Position.X + 24, y + 18), $"{who}   {licence}",
+                       HorizontalAlignment.Left, -1, 13, Ink);
+            y += 44;
+        }
+
+        DrawString(_font, new Vector2(box.Position.X, box.End.Y - 14), "F1 to close",
+                   HorizontalAlignment.Center, w, 11, Dim);
+    }
+
+    private static readonly Color Border = new(0.42f, 0.46f, 0.44f, 0.9f);
+
     public override void _Draw()
     {
         var size = Size;
+
+        if (ShowCredits) { DrawCredits(size); return; }
+
         DrawTelemetry();
         DrawReticle(size);
         DrawOffscreenMarkers(size);

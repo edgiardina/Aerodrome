@@ -33,7 +33,89 @@ public static class BiplaneFactory
         public required Node3D Rudder { get; init; }
     }
 
+    /// <summary>
+    /// Where a processed model lives if one has been made. Godot only sees files
+    /// under the project, so the export folder is reachable as a relative path.
+    /// </summary>
+    private const string ModelPath = "res://../assets/export/camel.glb";
+
+    /// <summary>
+    /// Use the real model if it has been prepared, otherwise the boxes.
+    ///
+    /// The fallback is not a nicety. The Sketchfab Camel is CC-BY and fine to use,
+    /// but it has to be downloaded with an account and run through
+    /// tools/prepare-model.ps1 first, so a fresh clone has no model in it. The game
+    /// must still run.
+    /// </summary>
     public static Parts Build(Color teamColor)
+    {
+        var imported = TryBuildImported(teamColor);
+        if (imported is not null) return imported;
+
+        return BuildPlaceholder(teamColor);
+    }
+
+    private static Parts? TryBuildImported(Color teamColor)
+    {
+        if (!ResourceLoader.Exists(ModelPath)) return null;
+
+        var scene = ResourceLoader.Load<PackedScene>(ModelPath);
+        if (scene is null) return null;
+
+        var root = scene.Instantiate<Node3D>();
+        root.Name = "Airframe";
+
+        // The pipeline names the spinning part "Propeller". If it could not find
+        // one, fall back to an empty node so the view has something to rotate.
+        var propeller = root.FindChild("Propeller", recursive: true, owned: false) as Node3D;
+        if (propeller is null)
+        {
+            propeller = new Node3D { Name = "Propeller" };
+            root.AddChild(propeller);
+            GD.Print("[model] no Propeller node in the .glb, so it will not spin");
+        }
+
+        // A real model has no separate control surfaces, so give the view empty
+        // nodes to drive. Deflection is lost until the model is split up further.
+        Node3D Stub(string name)
+        {
+            var node = new Node3D { Name = name };
+            root.AddChild(node);
+            return node;
+        }
+
+        // Team colour still has to read at a glance, so tint the whole airframe
+        // very slightly rather than leaving both sides identical.
+        Tint(root, teamColor);
+
+        return new Parts
+        {
+            Root = root,
+            Propeller = propeller,
+            AileronLeft = Stub("AileronLeft"),
+            AileronRight = Stub("AileronRight"),
+            Elevator = Stub("Elevator"),
+            Rudder = Stub("Rudder"),
+        };
+    }
+
+    private static void Tint(Node node, Color teamColor)
+    {
+        if (node is MeshInstance3D mesh)
+        {
+            var overlay = new StandardMaterial3D
+            {
+                AlbedoColor = new Color(teamColor, 0.18f),
+                Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+                ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+            };
+            mesh.MaterialOverlay = overlay;
+        }
+
+        foreach (var child in node.GetChildren()) Tint(child, teamColor);
+    }
+
+    private static Parts BuildPlaceholder(Color teamColor)
     {
         var root = new Node3D { Name = "Airframe" };
 
