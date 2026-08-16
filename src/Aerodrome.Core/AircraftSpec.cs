@@ -131,8 +131,28 @@ public sealed record AircraftSpec
     public int AmmoRounds { get; init; } = 500;
     public double RoundsPerSecond { get; init; } = 12.0;
     public double MuzzleVelocity { get; init; } = 745.0;
-    /// <summary>Random spread per round, in radians. Keeps long-range fire honest.</summary>
-    public double GunDispersionRad { get; init; } = 0.006;
+    /// <summary>
+    /// Random spread per round, in radians.
+    ///
+    /// Must stay well below the best pilot's aim error or it masks skill entirely.
+    /// Raised to 0.018 once, which is larger than an Ace's 0.011, and the Ace
+    /// immediately stopped being the best pilot in the game: its precision was
+    /// buried under the gun's own dice. Range falloff is the honest way to punish
+    /// long shots. Dispersion is not.
+    /// </summary>
+    public double GunDispersionRad { get; init; } = 0.005;
+
+    // --- Range effectiveness -------------------------------------------------
+    // A head-on merge used to be two pilots holding the trigger and hoping, which
+    // is a coin flip rather than a skill. These make a shot worth taking only when
+    // it is worth taking: close, and from a position you had to earn.
+
+    /// <summary>Inside this range a round does its full damage.</summary>
+    public double PointBlankRangeM { get; init; } = 90.0;
+    /// <summary>Past this range a round is doing almost nothing.</summary>
+    public double MaxEffectiveRangeM { get; init; } = 320.0;
+    /// <summary>Damage multiplier at and beyond MaxEffectiveRangeM.</summary>
+    public double LongRangeDamageFloor { get; init; } = 0.12;
     /// <summary>
     /// Every Nth round is a tracer. Real belts were often one in five, but rounds
     /// cross a 380 m view in half a second, so one in five leaves about two streaks

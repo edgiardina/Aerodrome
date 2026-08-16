@@ -97,14 +97,36 @@ That path is gitignored. If Godot reports missing assemblies after a clean, run
 
 ## Controls
 
-| Action | Mouse and keyboard | Gamepad | Classic (press `C`) |
+There are two ways to fly, and they are genuinely different games. Press `F2` to
+switch, or just move a controller's right stick and it switches itself.
+
+### Point to aim (mouse and keyboard)
+
+The cursor's direction from the screen center is where the nose should go, and
+the nose slews there. Push the cursor past about two thirds of the way out and it
+stops meaning "point here" and starts meaning "keep pulling", so you can hold a
+loop instead of having to swirl the mouse in a circle.
+
+### The column (controller)
+
+A real control stick. Back on the right stick pulls toward the canopy, so
+inverted, back stick points you at the ground. Shove the left stick hard left or
+right and the aircraft swaps ends with a flat turn. It has to return to centre
+before it will fire again, so it is a deliberate whack, not something you hold.
+
+| Action | Mouse and keyboard | Controller | Classic (press `C`) |
 |---|---|---|---|
-| Turn | Move the mouse. Cursor direction from screen center is the target heading. | Left stick | Numpad 8-way |
+| Pitch | Move the mouse | Right stick up/down | Numpad 8-way |
+| Flat turn (swap ends) | `A` or middle mouse | Whack left stick left or right, or `A` | The arrow opposite your facing |
 | Throttle | `W` / `S` | Triggers | `+` / `-` |
 | Guns | Left mouse | Right shoulder | `Space` |
 | Roll upright | Right mouse | B | `Ins` |
-| Flat turn (swap ends) | `A` or middle mouse | A | The arrow opposite your facing |
 | Aileron roll | `Q` | X | |
 | Near / Far view | `V` | Left shoulder | `V` |
+| Opponent skill | `1` / `2` / `3` | | |
 | Restart | `R` | | `R` |
+| Switch control scheme | `F2` | | `F2` |
 | Frame graph | `F3` | | `F3` |
+
+Guns fall off hard past about 90 m and are nearly useless by 320 m, so a long
+burst on the merge is wasted ammunition and gun heat. Get close.

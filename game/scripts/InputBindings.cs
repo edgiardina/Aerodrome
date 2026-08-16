@@ -27,6 +27,7 @@ public static class InputBindings
     public const string ClassicLeft = "classic_left";
     public const string ClassicRight = "classic_right";
 
+    public const string CycleScheme = "cycle_scheme";
     public const string DebugOverlay = "debug_overlay";
     public const string Restart = "restart";
 
@@ -70,6 +71,7 @@ public static class InputBindings
         Action(ClassicMode, Key.C);
 
         // --- Debug ----------------------------------------------------------
+        Action(CycleScheme, Key.F2);
         Action(DebugOverlay, Key.F3);
         Action(Restart, Key.R);
     }

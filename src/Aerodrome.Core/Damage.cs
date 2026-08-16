@@ -35,19 +35,41 @@ public static class Damage
     /// Resolve one hit. <paramref name="alongSpine"/> is 0 at the tail and 1 at
     /// the nose, so the geometry decides what got hit rather than a flat roll.
     /// </summary>
+    /// <summary>
+    /// How much of its punch a round still has after flying <paramref name="rangeM"/>.
+    ///
+    /// Full inside point-blank, then falling away to almost nothing by the end of
+    /// its useful range. Without this a head-on merge is two pilots holding the
+    /// trigger from 400 m and hoping, which decides fights by luck. Making distance
+    /// worthless turns the merge back into a positioning problem: you have to get
+    /// close, and getting close is where the flying happens.
+    /// </summary>
+    public static double RangeEffectiveness(AircraftSpec spec, double rangeM)
+    {
+        if (rangeM <= spec.PointBlankRangeM) return 1.0;
+        if (rangeM >= spec.MaxEffectiveRangeM) return spec.LongRangeDamageFloor;
+
+        double t = (rangeM - spec.PointBlankRangeM)
+                   / (spec.MaxEffectiveRangeM - spec.PointBlankRangeM);
+
+        // Squared, so the drop-off bites hard once you are past knife range.
+        return 1.0 - (1.0 - spec.LongRangeDamageFloor) * t * t;
+    }
+
     public static Component ApplyHit(
-        AircraftState s, AircraftSpec spec, double alongSpine, ref Rng rng)
+        AircraftState s, AircraftSpec spec, double alongSpine, ref Rng rng, double rangeM = 0.0)
     {
         if (!s.IsAlive) return Component.None;
 
         s.HitsTaken++;
+        double falloff = RangeEffectiveness(spec, rangeM);
 
         // Every round takes a slice of the airframe, whatever it went through, so
         // that sustained fire is reliably lethal and a kill is never a lottery.
-        s.AirframeIntegrity = Math.Max(0.0, s.AirframeIntegrity - spec.RoundIntegrityDamage);
+        s.AirframeIntegrity = Math.Max(0.0, s.AirframeIntegrity - spec.RoundIntegrityDamage * falloff);
 
         Component component = PickComponent(alongSpine, ref rng);
-        double damage = spec.RoundDamage;
+        double damage = spec.RoundDamage * falloff;
 
         switch (component)
         {

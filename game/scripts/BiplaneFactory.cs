@@ -45,24 +45,53 @@ public static class BiplaneFactory
         var rubber = Solid(Rubber);
         var team = Solid(teamColor);
 
-        // Fuselage and engine cowl.
-        Box(root, "Fuselage", new Vector3(4.6f, 0.80f, 0.72f), new Vector3(-0.20f, 0f, 0f), khaki);
-        Box(root, "Cowl", new Vector3(0.90f, 0.86f, 0.82f), new Vector3(2.35f, 0.05f, 0f), cowl);
+        // Fuselage. Three tapering sections instead of one slab, because the side
+        // profile is the whole silhouette in this game: deep at the cockpit,
+        // narrowing to the sternpost.
+        Box(root, "FuselageFore", new Vector3(1.90f, 0.86f, 0.74f), new Vector3(1.30f, 0.02f, 0f), khaki);
+        Box(root, "FuselageMid", new Vector3(1.60f, 0.74f, 0.66f), new Vector3(-0.35f, -0.02f, 0f), khaki);
+        // Tapers to 0.34, not 0.20. Any thinner and the fin has nothing to sit on
+        // and reads as a slab floating off the back of the aeroplane.
+        Taper(root, "FuselageAft", 0.66f, 0.34f, 2.20f, new Vector3(-2.20f, -0.02f, 0f), khaki);
 
-        // Wings. Upper above, lower below: the clearest read on which way is up.
-        Box(root, "UpperWing", new Vector3(1.45f, 0.10f, 8.53f), new Vector3(0.35f, 1.05f, 0f), khaki);
-        Box(root, "LowerWing", new Vector3(1.35f, 0.10f, 7.90f), new Vector3(0.15f, -0.38f, 0f), linen);
+        // The rotary's cowl is a drum, and its open bottom is unmistakable.
+        Drum(root, "Cowl", radius: 0.47f, length: 0.86f, new Vector3(2.38f, 0.06f, 0f), cowl);
+        Box(root, "CowlLip", new Vector3(0.10f, 0.30f, 0.66f), new Vector3(2.80f, -0.24f, 0f), dark);
 
-        // Struts.
-        Box(root, "CabaneL", new Vector3(0.09f, 1.05f, 0.09f), new Vector3(0.35f, 0.52f, 0.34f), dark);
-        Box(root, "CabaneR", new Vector3(0.09f, 1.05f, 0.09f), new Vector3(0.35f, 0.52f, -0.34f), dark);
-        Box(root, "StrutL", new Vector3(0.08f, 1.43f, 0.08f), new Vector3(0.30f, 0.33f, 2.60f), dark);
-        Box(root, "StrutR", new Vector3(0.08f, 1.43f, 0.08f), new Vector3(0.30f, 0.33f, -2.60f), dark);
+        // Wings, with stagger: the upper is set forward of the lower, which is the
+        // single most recognisable thing about a Camel from the side.
+        Box(root, "UpperWing", new Vector3(1.42f, 0.11f, 8.53f), new Vector3(0.62f, 1.06f, 0f), khaki);
+        Box(root, "UpperWingEdge", new Vector3(0.16f, 0.13f, 8.53f), new Vector3(1.31f, 1.06f, 0f), dark);
+        Box(root, "LowerWing", new Vector3(1.34f, 0.11f, 7.92f), new Vector3(0.06f, -0.42f, 0f), linen);
+        Box(root, "LowerWingEdge", new Vector3(0.15f, 0.12f, 7.92f), new Vector3(0.71f, -0.42f, 0f), dark);
 
-        // Tail. The fin pointing up is the strongest inversion cue in the silhouette.
-        Box(root, "Tailplane", new Vector3(0.85f, 0.08f, 2.70f), new Vector3(-2.85f, 0.10f, 0f), linen);
-        Box(root, "Fin", new Vector3(0.75f, 0.85f, 0.08f), new Vector3(-2.95f, 0.55f, 0f), khaki);
-        Box(root, "FinStripe", new Vector3(0.30f, 0.60f, 0.10f), new Vector3(-3.05f, 0.55f, 0f), team);
+        // Cabane struts to the centre section, splayed as they actually were.
+        Strut(root, "CabaneFwdL", new Vector3(0.95f, 0.42f, 0.32f), new Vector3(0.72f, 1.02f, 0.40f), dark);
+        Strut(root, "CabaneFwdR", new Vector3(0.95f, 0.42f, -0.32f), new Vector3(0.72f, 1.02f, -0.40f), dark);
+        Strut(root, "CabaneAftL", new Vector3(0.28f, 0.42f, 0.32f), new Vector3(0.44f, 1.02f, 0.40f), dark);
+        Strut(root, "CabaneAftR", new Vector3(0.28f, 0.42f, -0.32f), new Vector3(0.44f, 1.02f, -0.40f), dark);
+
+        // Interplane struts, one pair each side, raked with the stagger.
+        foreach (int side in new[] { 1, -1 })
+        {
+            Strut(root, $"StrutFwd{side}", new Vector3(0.36f, -0.38f, 2.58f * side),
+                  new Vector3(0.92f, 1.02f, 2.58f * side), dark);
+            Strut(root, $"StrutAft{side}", new Vector3(-0.34f, -0.38f, 2.58f * side),
+                  new Vector3(0.22f, 1.02f, 2.58f * side), dark);
+
+            // Flying wires. Thin, dark, and they read as the wire cage that made a
+            // biplane look like a biplane.
+            Strut(root, $"WireA{side}", new Vector3(0.10f, -0.38f, 1.05f * side),
+                  new Vector3(0.90f, 1.02f, 2.50f * side), dark, 0.035f);
+            Strut(root, $"WireB{side}", new Vector3(0.86f, -0.38f, 2.50f * side),
+                  new Vector3(0.30f, 1.02f, 1.05f * side), dark, 0.035f);
+        }
+
+        // Tail. The fin pointing up is the strongest inversion cue in the silhouette,
+        // so it has to be clearly readable, but it also has to sit ON the fuselage.
+        Box(root, "Tailplane", new Vector3(0.76f, 0.08f, 2.45f), new Vector3(-2.78f, -0.02f, 0f), linen);
+        Box(root, "Fin", new Vector3(0.62f, 0.66f, 0.08f), new Vector3(-2.92f, 0.30f, 0f), khaki);
+        Box(root, "FinStripe", new Vector3(0.22f, 0.44f, 0.10f), new Vector3(-3.06f, 0.32f, 0f), team);
 
         // Control surfaces. Each hangs off a pivot at its hinge line so the view can
         // just set a rotation. Watching these move is most of what makes a maneuver
@@ -71,21 +100,35 @@ public static class BiplaneFactory
                                  new Vector3(0.44f, 0.07f, 2.55f), linen);
         var aileronRight = Hinged(root, "AileronRight", new Vector3(-0.32f, 1.05f, -2.15f),
                                   new Vector3(0.44f, 0.07f, 2.55f), linen);
-        var elevator = Hinged(root, "Elevator", new Vector3(-3.27f, 0.10f, 0f),
-                              new Vector3(0.40f, 0.07f, 2.60f), linen);
-        var rudder = Hinged(root, "Rudder", new Vector3(-3.32f, 0.55f, 0f),
-                            new Vector3(0.38f, 0.80f, 0.07f), khaki);
+        var elevator = Hinged(root, "Elevator", new Vector3(-3.16f, -0.02f, 0f),
+                              new Vector3(0.38f, 0.07f, 2.35f), linen);
+        var rudder = Hinged(root, "Rudder", new Vector3(-3.23f, 0.30f, 0f),
+                            new Vector3(0.34f, 0.62f, 0.07f), khaki);
 
-        // Cockpit.
-        Box(root, "Cockpit", new Vector3(0.58f, 0.32f, 0.58f), new Vector3(0.55f, 0.46f, 0f), dark);
-        Box(root, "Headrest", new Vector3(0.26f, 0.24f, 0.46f), new Vector3(0.20f, 0.54f, 0f), khaki);
+        // Cockpit, set just behind the hump that houses the twin Vickers.
+        Box(root, "GunHump", new Vector3(0.92f, 0.22f, 0.52f), new Vector3(1.34f, 0.50f, 0f), khaki);
+        Box(root, "VickersL", new Vector3(1.00f, 0.11f, 0.11f), new Vector3(1.40f, 0.62f, 0.13f), dark);
+        Box(root, "VickersR", new Vector3(1.00f, 0.11f, 0.11f), new Vector3(1.40f, 0.62f, -0.13f), dark);
+        Box(root, "Cockpit", new Vector3(0.56f, 0.30f, 0.56f), new Vector3(0.60f, 0.48f, 0f), dark);
+        Box(root, "Coaming", new Vector3(0.64f, 0.10f, 0.64f), new Vector3(0.60f, 0.62f, 0f), wood);
+        Box(root, "Headrest", new Vector3(0.24f, 0.22f, 0.44f), new Vector3(0.22f, 0.56f, 0f), khaki);
 
-        // Undercarriage. Wheels below are the other half of the inversion read.
-        Box(root, "GearL", new Vector3(0.08f, 0.70f, 0.08f), new Vector3(0.85f, -0.72f, 0.42f), dark);
-        Box(root, "GearR", new Vector3(0.08f, 0.70f, 0.08f), new Vector3(0.85f, -0.72f, -0.42f), dark);
-        Box(root, "Axle", new Vector3(0.10f, 0.08f, 1.30f), new Vector3(0.85f, -1.05f, 0f), dark);
-        Wheel(root, "WheelL", new Vector3(0.85f, -1.05f, 0.62f), rubber);
-        Wheel(root, "WheelR", new Vector3(0.85f, -1.05f, -0.62f), rubber);
+        // Exhaust stubs poking out of the cowl.
+        Box(root, "ExhaustL", new Vector3(0.44f, 0.10f, 0.10f), new Vector3(2.02f, -0.30f, 0.26f), cowl);
+        Box(root, "ExhaustR", new Vector3(0.44f, 0.10f, 0.10f), new Vector3(2.02f, -0.30f, -0.26f), cowl);
+
+        // Undercarriage. Wheels below are the other half of the inversion read, and
+        // the V struts and spreader bar are a big part of the head-on silhouette.
+        Strut(root, "GearFwdL", new Vector3(1.22f, -0.36f, 0.30f), new Vector3(0.92f, -1.02f, 0.62f), dark);
+        Strut(root, "GearFwdR", new Vector3(1.22f, -0.36f, -0.30f), new Vector3(0.92f, -1.02f, -0.62f), dark);
+        Strut(root, "GearAftL", new Vector3(0.56f, -0.36f, 0.30f), new Vector3(0.92f, -1.02f, 0.62f), dark);
+        Strut(root, "GearAftR", new Vector3(0.56f, -0.36f, -0.30f), new Vector3(0.92f, -1.02f, -0.62f), dark);
+        Box(root, "Spreader", new Vector3(0.30f, 0.09f, 1.34f), new Vector3(0.92f, -1.00f, 0f), linen);
+        Wheel(root, "WheelL", new Vector3(0.92f, -1.04f, 0.66f), rubber);
+        Wheel(root, "WheelR", new Vector3(0.92f, -1.04f, -0.66f), rubber);
+
+        // Tail skid.
+        Strut(root, "TailSkid", new Vector3(-3.05f, -0.14f, 0f), new Vector3(-3.34f, -0.58f, 0f), wood, 0.09f);
 
         // Propeller. Its own node so it can spin about the long axis.
         var propeller = new Node3D { Name = "Propeller", Position = new Vector3(2.88f, 0.05f, 0f) };
@@ -152,6 +195,77 @@ public static class BiplaneFactory
         };
         parent.AddChild(node);
         return node;
+    }
+
+    /// <summary>
+    /// A strut or wire running between two points. Handles the rotation, so the
+    /// caller only has to say where it starts and where it ends, which is how you
+    /// actually think about rigging.
+    /// </summary>
+    private static void Strut(Node parent, string name, Vector3 from, Vector3 to,
+                              Material mat, float thickness = 0.075f)
+    {
+        Vector3 delta = to - from;
+        float length = delta.Length();
+        if (length < 1e-4f) return;
+
+        var node = new MeshInstance3D
+        {
+            Name = name,
+            Mesh = new BoxMesh { Size = new Vector3(length, thickness, thickness) },
+            Position = (from + to) * 0.5f,
+            MaterialOverride = mat,
+        };
+
+        // Point the box's long axis down the run.
+        Vector3 along = delta / length;
+        Vector3 reference = Mathf.Abs(along.Dot(Vector3.Up)) > 0.95f ? Vector3.Back : Vector3.Up;
+        Vector3 side = reference.Cross(along).Normalized();
+        node.Basis = new Basis(along, side.Cross(along), side);
+
+        parent.AddChild(node);
+    }
+
+    /// <summary>A tapering section, for the rear fuselage running back to the sternpost.</summary>
+    private static void Taper(Node parent, string name, float frontSize, float backSize,
+                              float length, Vector3 center, Material mat)
+    {
+        const int steps = 4;
+        for (int i = 0; i < steps; i++)
+        {
+            float t = (i + 0.5f) / steps;
+            float size = Mathf.Lerp(frontSize, backSize, t);
+            float x = center.X + length * (0.5f - t);
+
+            parent.AddChild(new MeshInstance3D
+            {
+                Name = $"{name}{i}",
+                Mesh = new BoxMesh { Size = new Vector3(length / steps + 0.02f, size, size * 0.9f) },
+                Position = new Vector3(x, center.Y + (frontSize - size) * 0.12f, center.Z),
+                MaterialOverride = mat,
+            });
+        }
+    }
+
+    /// <summary>The engine cowl: a drum lying on its side, facing forward.</summary>
+    private static void Drum(Node parent, string name, float radius, float length,
+                             Vector3 position, Material mat)
+    {
+        parent.AddChild(new MeshInstance3D
+        {
+            Name = name,
+            Mesh = new CylinderMesh
+            {
+                TopRadius = radius,
+                BottomRadius = radius * 0.96f,
+                Height = length,
+                RadialSegments = 14,
+            },
+            Position = position,
+            // A cylinder stands up the Y axis by default. Lay it along the nose.
+            RotationDegrees = new Vector3(0, 0, 90),
+            MaterialOverride = mat,
+        });
     }
 
     private static void Wheel(Node parent, string name, Vector3 position, Material mat)

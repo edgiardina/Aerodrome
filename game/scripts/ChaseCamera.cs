@@ -40,6 +40,9 @@ public sealed partial class ChaseCamera : Camera3D
 
     public bool FarView { get; private set; }
 
+    /// <summary>Capture-only zoom override, in meters of visible width. Null is normal.</summary>
+    public double? ForcedWidthM { get; set; }
+
     public double VisibleWidthM => _visibleWidth;
     public double VisibleHeightM => _visibleWidth / Aspect;
     public Vector2 CenterM => _center;
@@ -92,6 +95,14 @@ public sealed partial class ChaseCamera : Camera3D
 
     private void ComputeTargets(double alpha)
     {
+        if (ForcedWidthM is { } forced)
+        {
+            var prs0 = _sim.Player.Interpolated(alpha);
+            _targetWidth = forced;
+            _targetCenter = new Vector2((float)prs0.X, (float)prs0.Y);
+            return;
+        }
+
         if (FarView)
         {
             // Far View overrides everything and shows the whole box.

@@ -406,6 +406,59 @@ public class CombatTests
         Assert.Equal(DeathCause.StructuralFailure, shotUp.Death);
     }
 
+    [Fact]
+    public void Rounds_lose_almost_all_their_bite_at_long_range()
+    {
+        // A head-on merge was two pilots holding the trigger from far out and
+        // hoping, which decides the fight by luck. Distance has to be worthless.
+        var spec = AircraftSpec.CamelArcade;
+
+        Assert.Equal(1.0, Damage.RangeEffectiveness(spec, 0), 6);
+        Assert.Equal(1.0, Damage.RangeEffectiveness(spec, spec.PointBlankRangeM), 6);
+
+        double far = Damage.RangeEffectiveness(spec, spec.MaxEffectiveRangeM);
+        Assert.Equal(spec.LongRangeDamageFloor, far, 6);
+        Assert.True(far < 0.25, "a long shot must be nearly worthless");
+
+        // Monotonic, and it should bite hard rather than fade politely.
+        double previous = 1.0;
+        for (double r = 0; r <= 400; r += 20)
+        {
+            double e = Damage.RangeEffectiveness(spec, r);
+            Assert.True(e <= previous + 1e-9, $"effectiveness rose at {r} m");
+            previous = e;
+        }
+
+        double half = Damage.RangeEffectiveness(spec, (spec.PointBlankRangeM + spec.MaxEffectiveRangeM) * 0.5);
+        Assert.True(half < 0.85, $"halfway out a round should already be hurting, got {half:F2}");
+    }
+
+    [Fact]
+    public void It_takes_far_more_long_shots_than_close_ones_to_down_an_aircraft()
+    {
+        var spec = AircraftSpec.CamelArcade;
+
+        int HitsToKill(double range)
+        {
+            var s = AircraftState.Spawn(spec, new Vec2(600, 400), 0.0, 60);
+            var rng = new Rng(7);
+            int hits = 0;
+            while (s.IsAlive && hits < 400)
+            {
+                Damage.ApplyHit(s, spec, 0.3 + (hits % 5) * 0.12, ref rng, range);
+                Damage.Step(s, spec, FlightModel.FixedDt);
+                hits++;
+            }
+            return hits;
+        }
+
+        int close = HitsToKill(40);
+        int distant = HitsToKill(340);
+
+        Assert.True(distant > close * 3,
+            $"close took {close} hits, long range took {distant}: not enough of a difference");
+    }
+
     // --- Aiming -------------------------------------------------------------
 
     [Fact]

@@ -300,9 +300,32 @@ public static class FlightModel
         double airspeed, double density, double rollAuthority, double dt)
     {
         s.SlewRateRad = 0.0;
-        if (!input.HeadingCommand.HasValue) return;
 
-        double error = Angles.Delta(s.Theta, input.HeadingCommand.Value);
+        // Two control schemes, one set of limits.
+        //
+        // A stick deflection is a RATE, not a destination, so it is turned into a
+        // heading error big enough that the rate limiting below is what caps it.
+        // Both schemes then pass through identical G, damage and roll authority,
+        // which means switching control style cannot change what the aircraft can
+        // physically do.
+        double error;
+        double stickScale = 1.0;
+
+        if (input.PitchStick is { } stick)
+        {
+            if (Math.Abs(stick) < 1e-6) return;
+            // Positive is back stick: a pull, which always goes toward the canopy.
+            // Inverted, that points at the ground, exactly as a real stick would.
+            error = Math.Sign(stick) * s.CanopySign * Math.PI;
+            // Half deflection is half the turn rate, so the stick is proportional.
+            stickScale = Math.Min(1.0, Math.Abs(stick));
+        }
+        else if (input.HeadingCommand.HasValue)
+        {
+            error = Angles.Delta(s.Theta, input.HeadingCommand.Value);
+        }
+        else return;
+
         if (Math.Abs(error) < 1e-9) return;
 
         // EffectiveControl, not ControlHealth: a shot-away tail and a wounded pilot
@@ -311,7 +334,7 @@ public static class FlightModel
         if (s.IsStalled) authority *= 0.35;
         if (s.IsSpinning) authority *= spec.SpinAuthority;
 
-        double maxRate = MaxSlewRate(airspeed, density, spec) * authority;
+        double maxRate = MaxSlewRate(airspeed, density, spec) * authority * stickScale;
 
         // The one rule that gives inversion its bite. A pull runs at the full G
         // limit. A push does not. Turning the wrong way up means every fast turn

@@ -28,8 +28,27 @@ public sealed partial class PlayerInput : Node
 
     private const double ThrottleRatePerSecond = 0.9;
 
+    /// <summary>How the pilot flies. Switch with F2, or just plug a pad in.</summary>
+    public enum Scheme
+    {
+        /// <summary>Point where the nose should go. The original's control.</summary>
+        HeadingSelect,
+        /// <summary>A real control column. Back stick pulls toward the canopy.</summary>
+        Stick,
+    }
+
+    /// <summary>Deflection past which a left-stick shove counts as "swap ends".</summary>
+    private const float ReverseWhackThreshold = 0.72f;
+    private const float ReverseReleaseThreshold = 0.40f;
+
+    public Scheme ControlScheme { get; private set; } = Scheme.HeadingSelect;
     public bool ClassicMode { get; private set; }
     public double Throttle { get; private set; } = 1.0;
+
+    /// <summary>Back-stick amount, -1 to 1, when flying on the column. Null otherwise.</summary>
+    public double? PitchStick { get; private set; }
+
+    private bool _reverseArmed = true;
 
     /// <summary>Where the pilot is currently aiming the nose, or null for "hold".</summary>
     public double? AimHeading { get; private set; }
@@ -65,6 +84,22 @@ public sealed partial class PlayerInput : Node
         if (Input.IsActionJustPressed(InputBindings.FlatTurn)) _flatTurnLatch = true;
         if (Input.IsActionJustPressed(InputBindings.ToggleView)) _viewLatch = true;
         if (Input.IsActionJustPressed(InputBindings.ClassicMode)) ClassicMode = !ClassicMode;
+        if (Input.IsActionJustPressed(InputBindings.CycleScheme))
+            ControlScheme = ControlScheme == Scheme.HeadingSelect ? Scheme.Stick : Scheme.HeadingSelect;
+
+        // A pad plugged in and actually being used switches to the column on its
+        // own. Nobody picks up a controller and then wants to aim with a cursor.
+        //
+        // Check the pad is really there first. Reading an axis with nothing attached
+        // returned enough to trip this, and the game silently switched to a control
+        // scheme with no device behind it.
+        if (Input.GetConnectedJoypads().Count > 0 &&
+            Math.Abs(Input.GetJoyAxis(0, JoyAxis.RightY)) > 0.35f)
+        {
+            ControlScheme = Scheme.Stick;
+        }
+
+        ReadStick();
 
         // Faithful Classic behaviour: press the direction you are NOT facing and the
         // aircraft swaps ends, exactly as the numpad did in the original.
@@ -82,12 +117,46 @@ public sealed partial class PlayerInput : Node
         AimHeading = ClassicMode ? ReadClassicHeading() : ReadAnalogHeading();
     }
 
+    /// <summary>
+    /// Fly on the column.
+    ///
+    /// Right stick vertical is pitch, as a real stick: back pulls toward the
+    /// canopy, so inverted it points you at the ground.
+    ///
+    /// Left stick horizontal is not a turn. Shove it either way and the aircraft
+    /// swaps ends with a flat turn. It has to be re-centered before it will fire
+    /// again, so it is a deliberate whack rather than something you can hold.
+    /// </summary>
+    private void ReadStick()
+    {
+        if (ControlScheme != Scheme.Stick || Input.GetConnectedJoypads().Count == 0)
+        {
+            PitchStick = null;
+            return;
+        }
+
+        float raw = -Input.GetJoyAxis(0, JoyAxis.RightY);   // pad up is negative
+        if (Math.Abs(raw) < 0.16f) raw = 0f;                // deadzone
+
+        // Squared response: fine control near center, full authority at the stops.
+        PitchStick = Math.Sign(raw) * raw * raw;
+
+        float lateral = Input.GetJoyAxis(0, JoyAxis.LeftX);
+        if (Math.Abs(lateral) < ReverseReleaseThreshold) _reverseArmed = true;
+        else if (_reverseArmed && Math.Abs(lateral) > ReverseWhackThreshold)
+        {
+            _reverseArmed = false;
+            _flatTurnLatch = true;
+        }
+    }
+
     /// <summary>Build one tick of input and consume the latched edges.</summary>
     public AircraftInput Poll()
     {
         var input = new AircraftInput
         {
-            HeadingCommand = AimHeading,
+            HeadingCommand = ControlScheme == Scheme.Stick ? null : AimHeading,
+            PitchStick = PitchStick,
             ThrottleCommand = Throttle,
             FireHeld = Input.IsActionPressed(InputBindings.Fire),
             RollPressed = _rollLatch,

@@ -28,6 +28,19 @@ public sealed class PilotAi
     private int _historyFilled;
 
     private Rng _rng;
+    /// <summary>
+    /// Shortest time a pilot will stick with a plan before changing it.
+    ///
+    /// Without this, thinking faster is a HANDICAP. An Ace re-deciding every 0.18 s
+    /// flip-flopped between turning and extending and never carried either through,
+    /// and it lost to pilots that simply committed: 32 percent against a Veteran.
+    /// Adding commitment took it straight back to winning. Reacting quickly and
+    /// changing your mind constantly are not the same thing, and only the first one
+    /// is skill. Breaking off is exempt, because that is always urgent.
+    /// </summary>
+    private const double MinimumCommitmentS = 0.85;
+
+    private double _behaviourHeld;
     private double _sinceDecision;
     private double _aimError;
     private double _scissorsTimer;
@@ -55,11 +68,19 @@ public sealed class PilotAi
         GetDelayedTarget(out Vec2 targetPos, out Vec2 targetVel);
 
         _sinceDecision += dt;
+        _behaviourHeld += dt;
+
         if (_sinceDecision >= Skill.DecisionPeriodS)
         {
             _sinceDecision = 0;
             _aimError = Wander(_aimError, Skill.AimErrorRad);
-            Current = Decide(self, enemy, targetPos, arena);
+
+            Behavior wanted = Decide(self, enemy, targetPos, arena);
+            if (wanted != Current && (_behaviourHeld >= MinimumCommitmentS || wanted == Behavior.Disengage))
+            {
+                Current = wanted;
+                _behaviourHeld = 0;
+            }
         }
 
         return Execute(self, enemy, targetPos, targetVel, arena);

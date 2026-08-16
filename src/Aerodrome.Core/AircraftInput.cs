@@ -9,8 +9,20 @@ public readonly record struct AircraftInput
     /// <summary>
     /// Where the pilot wants the nose to point, in radians. Null means "hold what
     /// you have", which is what a centered stick does.
+    ///
+    /// This is the original's control: you point, the nose goes there and stops.
     /// </summary>
     public double? HeadingCommand { get; init; }
+
+    /// <summary>
+    /// A real control column instead: -1 is full forward, +1 is full back, relative
+    /// to the AIRCRAFT. Takes priority over HeadingCommand when set.
+    ///
+    /// Pulling back always takes the nose toward the canopy, so inverted, back
+    /// stick points you at the ground. That is what a stick does, and it is why
+    /// this scheme makes the roll key matter in a way pointing never did.
+    /// </summary>
+    public double? PitchStick { get; init; }
 
     /// <summary>Throttle the pilot is asking for, 0 to 1. The lever slews toward it.</summary>
     public double ThrottleCommand { get; init; }

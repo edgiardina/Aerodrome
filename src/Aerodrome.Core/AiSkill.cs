@@ -35,7 +35,15 @@ public sealed record AiSkill
     /// </summary>
     public double FireConeRad { get; init; }
 
-    /// <summary>Longest range it will open fire at.</summary>
+    /// <summary>
+    /// Longest range it will open fire at, and now a measure of DISCIPLINE rather
+    /// than reach. Lower is better.
+    ///
+    /// Rounds fall off hard past 90 m, so a long shot spends ammunition and gun
+    /// heat to do almost nothing, and leaves you dry or jammed when the shot that
+    /// mattered finally came. Giving the Ace the longest reach made it the worst
+    /// pilot in the game the moment falloff went in. A good pilot holds fire.
+    /// </summary>
     public double FireRangeM { get; init; }
 
     /// <summary>
@@ -82,10 +90,10 @@ public sealed record AiSkill
         ReactionDelayS = 0.55,
         AimErrorRad = 0.085,
         DecisionPeriodS = 0.45,
-        FireConeRad = 0.30,
-        FireRangeM = 260,
+        FireConeRad = 0.17,
+        FireRangeM = 200,
         BreakOffDamage = 0.52,
-        InvertedToleranceS = 2.6,
+        InvertedToleranceS = 1.2,
         ThrottleDiscipline = 0.0,
     };
 
@@ -95,11 +103,11 @@ public sealed record AiSkill
         ReactionDelayS = 0.26,
         AimErrorRad = 0.032,
         DecisionPeriodS = 0.28,
-        FireConeRad = 0.16,
-        FireRangeM = 320,
+        FireConeRad = 0.17,
+        FireRangeM = 200,
         BreakOffDamage = 0.52,
-        InvertedToleranceS = 1.0,
-        ThrottleDiscipline = 0.6,
+        InvertedToleranceS = 1.2,
+        ThrottleDiscipline = 0.0,
     };
 
     public static readonly AiSkill Ace = new()
@@ -108,11 +116,11 @@ public sealed record AiSkill
         ReactionDelayS = 0.11,
         AimErrorRad = 0.011,
         DecisionPeriodS = 0.18,
-        FireConeRad = 0.09,
-        FireRangeM = 380,
+        FireConeRad = 0.17,
+        FireRangeM = 200,
         BreakOffDamage = 0.52,
-        InvertedToleranceS = 0.55,
-        ThrottleDiscipline = 1.0,
+        InvertedToleranceS = 1.2,
+        ThrottleDiscipline = 0.0,
     };
 
     public static AiSkill[] All => new[] { Rookie, Veteran, Ace };

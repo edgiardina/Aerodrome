@@ -27,6 +27,7 @@ public sealed partial class Main : Node3D
     private readonly List<DamageEffects> _effects = new();
     private BulletView _bulletView = null!;
     private PilotAi _enemyPilot = null!;
+    private GameAudio _audio = null!;
     private AiSkill _skill = AiSkill.Veteran;
     private int _roundNumber;
 
@@ -83,6 +84,7 @@ public sealed partial class Main : Node3D
         (23.80, "07-tracers",         false),
         (28.00, "08-smoking",         false),
         (31.50, "09-burning",         false),
+        (34.50, "10-closeup",         false),
     };
 
     private void RunCapture(double delta)
@@ -94,6 +96,15 @@ public sealed partial class Main : Node3D
         var player = _sim.Player.State;
         if (_captureTime is > 26.0 and < 26.2) { player.EngineHealth = 0.25; player.AirframeIntegrity = 0.45; }
         if (_captureTime is > 30.0 and < 30.2) { player.OnFire = true; player.FireTime = 0; }
+
+        // Close in on the airframe so the model itself can be checked by eye.
+        if (_captureTime > 33.0 && _camera.ForcedWidthM is null)
+        {
+            player.OnFire = false;
+            player.EngineHealth = 1.0;
+            player.AirframeIntegrity = 1.0;
+            _camera.ForcedWidthM = 70.0;
+        }
 
         if (_nextShot >= CaptureSchedule.Length)
         {
@@ -218,6 +229,11 @@ public sealed partial class Main : Node3D
         }
 
         _sim.Step();
+
+        // Audio runs on the sim tick, not the render frame, because BulletField
+        // clears its hit list on every Step. Reading it from _Process would miss
+        // hits whenever the renderer happened to run slower than the sim.
+        _audio.Update(_sim.Player.State, _sim.Player.Spec, _sim.Bullets.Hits, delta);
     }
 
     public override void _Process(double delta)
@@ -278,6 +294,9 @@ public sealed partial class Main : Node3D
     {
         _input = new PlayerInput { Name = "PlayerInput" };
         AddChild(_input);
+
+        _audio = GameAudio.Create();
+        AddChild(_audio);
 
         AddChild(new WorldEnvironment { Name = "Environment", Environment = BuildEnvironment() });
 

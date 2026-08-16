@@ -97,7 +97,8 @@ public sealed partial class Hud : Control
 
         y += 8;
         Row("ENEMY", _skill().Name, ref y, Dim);
-        Row("MODE", _input.ClassicMode ? "CLASSIC 8-WAY" : "analog", ref y, Dim);
+        Row("STICK", _input.ControlScheme == PlayerInput.Scheme.Stick ? "COLUMN (pad)"
+            : _input.ClassicMode ? "CLASSIC 8-WAY" : "point to aim", ref y, Dim);
 
         void Row(string label, string value, ref float rowY, Color color)
         {

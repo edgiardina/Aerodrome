@@ -12,11 +12,15 @@ public struct Bullet
     public int OwnerIndex;
     public bool IsTracer;
     public bool Active;
+
+    /// <summary>Where this round was fired from, so a hit knows how far it travelled.</summary>
+    public Vec2 Origin;
 }
 
 /// <summary>What happened when a round connected. Presentation reads these.</summary>
 public readonly record struct HitEvent(
-    Vec2 Position, int VictimIndex, int ShooterIndex, Component Component, bool Fatal);
+    Vec2 Position, int VictimIndex, int ShooterIndex, Component Component, bool Fatal,
+    double RangeM, double Effectiveness);
 
 /// <summary>
 /// Every round in the air. A fixed pool, reused forever, so the sim loop never
@@ -77,6 +81,7 @@ public sealed class BulletField
                 OwnerIndex = ownerIndex,
                 IsTracer = tracer,
                 Active = true,
+                Origin = position,
             };
             _cursor = (index + 1) % _bullets.Length;
             return;
@@ -92,6 +97,7 @@ public sealed class BulletField
             OwnerIndex = ownerIndex,
             IsTracer = tracer,
             Active = true,
+            Origin = position,
         };
         _cursor = (_cursor + 1) % _bullets.Length;
     }
@@ -164,7 +170,8 @@ public sealed class BulletField
         victim.HitSpine(out Vec2 vNose, out Vec2 vTail);
         double along = Geometry.AlongSpine(impact, vTail, vNose);
 
-        Component component = Damage.ApplyHit(victim.State, victim.Spec, along, ref rng);
+        double travelled = (impact - b.Origin).Length;
+        Component component = Damage.ApplyHit(victim.State, victim.Spec, along, ref rng, travelled);
         bool fatal = !victim.State.IsAlive;
 
         if (b.OwnerIndex >= 0 && b.OwnerIndex < combatants.Count)
@@ -173,7 +180,8 @@ public sealed class BulletField
             if (fatal) combatants[b.OwnerIndex].Kills++;
         }
 
-        _hits.Add(new HitEvent(impact, bestVictim, b.OwnerIndex, component, fatal));
+        _hits.Add(new HitEvent(impact, bestVictim, b.OwnerIndex, component, fatal,
+                               travelled, Damage.RangeEffectiveness(victim.Spec, travelled)));
         b.Active = false;
     }
 }
