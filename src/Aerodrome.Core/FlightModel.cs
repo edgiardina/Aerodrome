@@ -305,7 +305,9 @@ public static class FlightModel
         double error = Angles.Delta(s.Theta, input.HeadingCommand.Value);
         if (Math.Abs(error) < 1e-9) return;
 
-        double authority = rollAuthority * s.ControlHealth;
+        // EffectiveControl, not ControlHealth: a shot-away tail and a wounded pilot
+        // both cost you the nose, and the player should feel that before they die.
+        double authority = rollAuthority * s.EffectiveControl;
         if (s.IsStalled) authority *= 0.35;
         if (s.IsSpinning) authority *= spec.SpinAuthority;
 

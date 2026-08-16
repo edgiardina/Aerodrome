@@ -16,6 +16,16 @@ public sealed partial class PlayerInput : Node
 {
     /// <summary>Mouse distance from screen center, in pixels, below which the stick reads as centered.</summary>
     private const float MouseDeadzonePx = 36f;
+
+    /// <summary>
+    /// Deflection past which the stick stops meaning "point here" and starts meaning
+    /// "keep pulling". As a fraction of half the screen height.
+    /// </summary>
+    private const float SustainedPullDeflection = 0.62f;
+
+    /// <summary>How far ahead of the nose a sustained pull leads, in radians.</summary>
+    private const double SustainedPullLeadRad = 0.7;
+
     private const double ThrottleRatePerSecond = 0.9;
 
     public bool ClassicMode { get; private set; }
@@ -23,6 +33,18 @@ public sealed partial class PlayerInput : Node
 
     /// <summary>Where the pilot is currently aiming the nose, or null for "hold".</summary>
     public double? AimHeading { get; private set; }
+
+    /// <summary>True while the stick is pushed far enough to mean "keep pulling".</summary>
+    public bool SustainedPull { get; private set; }
+
+    /// <summary>The aircraft's current nose angle. Main keeps this fresh.</summary>
+    public double NoseHeading { get; set; }
+
+    /// <summary>Which way a pull turns the nose, +1 or -1. Main keeps this fresh.</summary>
+    public int CanopySign { get; set; } = 1;
+
+    /// <summary>Set while a modal panel owns the mouse, so aiming does not fight it.</summary>
+    public bool SuspendMouseAim { get; set; }
 
     private bool _rollLatch;
     private bool _aileronLatch;
@@ -92,25 +114,59 @@ public sealed partial class PlayerInput : Node
     /// </summary>
     private double? ReadAnalogHeading()
     {
+        SustainedPull = false;
+
         var stick = Input.GetVector("classic_left", "classic_right", "classic_down", "classic_up");
         var pad = new Vector2(
             Input.GetJoyAxis(0, JoyAxis.LeftX),
             -Input.GetJoyAxis(0, JoyAxis.LeftY));
 
         if (pad.Length() > 0.25f)
-            return Angles.Wrap0To2Pi(Math.Atan2(pad.Y, pad.X));
+            return Aim(Math.Atan2(pad.Y, pad.X), pad.Length());
 
         var viewport = GetViewport();
-        if (viewport is null) return null;
+        if (viewport is null || SuspendMouseAim) return null;
 
-        Vector2 center = viewport.GetVisibleRect().Size * 0.5f;
-        Vector2 offset = viewport.GetMousePosition() - center;
+        Vector2 half = viewport.GetVisibleRect().Size * 0.5f;
+        Vector2 offset = viewport.GetMousePosition() - half;
 
         if (offset.Length() < MouseDeadzonePx)
-            return stick.Length() > 0.1f ? Angles.Wrap0To2Pi(Math.Atan2(stick.Y, stick.X)) : null;
+        {
+            if (stick.Length() <= 0.1f) return null;
+            return Aim(Math.Atan2(stick.Y, stick.X), stick.Length());
+        }
 
         // Screen Y grows downward, world Y grows upward.
-        return Angles.Wrap0To2Pi(Math.Atan2(-offset.Y, offset.X));
+        float deflection = half.Y > 0 ? offset.Length() / half.Y : 0f;
+        return Aim(Math.Atan2(-offset.Y, offset.X), deflection);
+    }
+
+    /// <summary>
+    /// Turn a stick direction into a heading command.
+    ///
+    /// Near the middle this is pure heading-select, the original's control: the nose
+    /// goes where you point and stops there, which is precise and easy to aim with.
+    ///
+    /// Pushed hard over it becomes "keep pulling". Without that, holding the cursor
+    /// straight up climbs the nose to vertical and parks it, and the only way to
+    /// fly a loop is to swirl the mouse in a circle. Holding a direction has to
+    /// keep the turn coming, the way holding the numpad did in the original.
+    /// </summary>
+    private double? Aim(double direction, double deflection)
+    {
+        direction = Angles.Wrap0To2Pi(direction);
+        if (deflection < SustainedPullDeflection) return direction;
+
+        // Is the stick asking for a turn the aircraft is still working through?
+        double error = Angles.Delta(NoseHeading, direction);
+
+        // Once the nose has caught up, keep leading it round in the same direction
+        // rather than letting it settle on the commanded heading.
+        if (Math.Abs(error) > 0.35) return direction;
+
+        SustainedPull = true;
+        int turnSign = Math.Abs(error) > 1e-6 ? Math.Sign(error) : CanopySign;
+        return Angles.Wrap0To2Pi(NoseHeading + turnSign * SustainedPullLeadRad);
     }
 
     /// <summary>

@@ -279,24 +279,73 @@ public class CombatTests
     // --- Damage -------------------------------------------------------------
 
     [Fact]
-    public void A_hit_to_the_pilot_ends_it_immediately()
+    public void One_lucky_round_never_ends_a_round()
+    {
+        // A single bullet deciding the fight is arbitrary and teaches nobody
+        // anything. Whatever it hits, one round must never be fatal.
+        var spec = AircraftSpec.CamelArcade;
+        var rng = new Rng(1);
+
+        for (int i = 0; i < 600; i++)
+        {
+            var s = AircraftState.Spawn(spec, new Vec2(600, 400), 0.0, 60);
+            double along = i / 600.0;   // sweep the whole airframe, nose to tail
+            Damage.ApplyHit(s, spec, along, ref rng);
+            Damage.Step(s, spec, FlightModel.FixedDt);
+
+            Assert.True(s.IsAlive, $"a single round at {along:F2} along the airframe was fatal");
+        }
+    }
+
+    [Fact]
+    public void A_pilot_has_to_be_hit_several_times()
     {
         var spec = AircraftSpec.CamelArcade;
         var s = AircraftState.Spawn(spec, new Vec2(600, 400), 0.0, 60);
         var rng = new Rng(1);
 
-        // Walk hits down the airframe until the pilot takes one.
+        int pilotHits = 0;
         for (int i = 0; i < 4000 && s.IsAlive; i++)
         {
+            // Keep the rest of the airframe fresh so only the pilot can end this.
             s.EngineHealth = s.WingHealth = s.TailHealth = s.ControlHealth = 1.0;
             s.FuelSystemHealth = 1.0;
+            s.AirframeIntegrity = 1.0;
             s.OnFire = false;
-            Damage.ApplyHit(s, spec, 0.55, ref rng);
+
+            if (Damage.ApplyHit(s, spec, 0.55, ref rng) == Component.Pilot) pilotHits++;
         }
 
         Assert.False(s.IsAlive);
         Assert.Equal(DeathCause.Gunfire, s.Death);
-        Assert.Equal(Component.Pilot, s.LastHit);
+        Assert.True(pilotHits >= 3, $"took only {pilotHits} cockpit hits to kill the pilot");
+
+        // And the pilot flies worse long before they stop flying.
+        var wounded = AircraftState.Spawn(spec, new Vec2(600, 400), 0.0, 60);
+        wounded.PilotHealth = 0.5;
+        Assert.True(wounded.IsWounded);
+        Assert.True(wounded.EffectiveControl < 1.0);
+    }
+
+    [Fact]
+    public void Sustained_hits_reliably_bring_an_aircraft_down()
+    {
+        // Component damage on its own made kills a lottery. Twenty rounds could go
+        // in without anything decisive happening. Keep hitting and it must come apart.
+        var spec = AircraftSpec.CamelArcade;
+        var s = AircraftState.Spawn(spec, new Vec2(600, 400), 0.0, 60);
+        var rng = new Rng(42);
+
+        int hits = 0;
+        while (s.IsAlive && hits < 200)
+        {
+            Damage.ApplyHit(s, spec, 0.3 + (hits % 5) * 0.12, ref rng);
+            Damage.Step(s, spec, FlightModel.FixedDt);
+            hits++;
+        }
+
+        Assert.False(s.IsAlive);
+        Assert.InRange(hits, 6, 30);
     }
 
     [Fact]

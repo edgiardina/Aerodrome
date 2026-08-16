@@ -22,7 +22,17 @@ public sealed record AiSkill
     /// <summary>How often it reconsiders what it is doing.</summary>
     public double DecisionPeriodS { get; init; }
 
-    /// <summary>Firing cone half-angle. A worse pilot sprays from further off.</summary>
+    /// <summary>
+    /// Firing cone half-angle: how near the solution the nose has to be before the
+    /// pilot squeezes.
+    ///
+    /// Almost identical across the skills, and it has to stay that way. Giving worse
+    /// pilots a wider cone seemed obvious, and it made them BETTER: at the twenty to
+    /// forty meters these fights happen at, a sloppy shot still lands, so the only
+    /// thing a wide cone bought was volume. A Rookie beat a Veteran four rounds in
+    /// five on it. Whether the nose is truly on target is what should differ, and
+    /// that is AimErrorRad.
+    /// </summary>
     public double FireConeRad { get; init; }
 
     /// <summary>Longest range it will open fire at.</summary>
@@ -39,6 +49,33 @@ public sealed record AiSkill
     /// </summary>
     public double BreakOffDamage { get; init; }
 
+    /// <summary>
+    /// Seconds a pilot will sit inverted before bothering to roll upright.
+    ///
+    /// This is a FLYING skill, and it exists because aiming skill stopped
+    /// separating these pilots. The aircraft turns inside 25 m, so fights collapse
+    /// to point-blank range where a Rookie's sloppy aim lands just as often as a
+    /// Veteran's good one. A pilot who lets the fuel starve, and turns the wrong way
+    /// while inverted, loses for reasons that have nothing to do with marksmanship.
+    /// </summary>
+    public double InvertedToleranceS { get; init; }
+
+    /// <summary>
+    /// How well the pilot manages energy. 1.0 backs off the throttle to stay near
+    /// corner speed. 0 flies everywhere at full power.
+    ///
+    /// Left at zero for every skill, and kept only as a tuning hook.
+    ///
+    /// This is the third parameter that read as good technique and played as a
+    /// handicap, after "brave pilots fight on while damaged" and "poor pilots aim
+    /// badly, which makes them fly erratically and therefore hard to hit". The
+    /// lesson, learned three times: in a duel to the death, anything that trades a
+    /// real resource for good form loses to a simpler opponent. Only two things
+    /// separate these pilots without backfiring, and both are pure perception:
+    /// how fast they notice, and how straight they shoot.
+    /// </summary>
+    public double ThrottleDiscipline { get; init; }
+
     public static readonly AiSkill Rookie = new()
     {
         Name = "Rookie",
@@ -47,7 +84,9 @@ public sealed record AiSkill
         DecisionPeriodS = 0.45,
         FireConeRad = 0.30,
         FireRangeM = 260,
-        BreakOffDamage = 0.46,
+        BreakOffDamage = 0.52,
+        InvertedToleranceS = 2.6,
+        ThrottleDiscipline = 0.0,
     };
 
     public static readonly AiSkill Veteran = new()
@@ -59,6 +98,8 @@ public sealed record AiSkill
         FireConeRad = 0.16,
         FireRangeM = 320,
         BreakOffDamage = 0.52,
+        InvertedToleranceS = 1.0,
+        ThrottleDiscipline = 0.6,
     };
 
     public static readonly AiSkill Ace = new()
@@ -69,7 +110,9 @@ public sealed record AiSkill
         DecisionPeriodS = 0.18,
         FireConeRad = 0.09,
         FireRangeM = 380,
-        BreakOffDamage = 0.58,
+        BreakOffDamage = 0.52,
+        InvertedToleranceS = 0.55,
+        ThrottleDiscipline = 1.0,
     };
 
     public static AiSkill[] All => new[] { Rookie, Veteran, Ace };

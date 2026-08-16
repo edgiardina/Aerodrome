@@ -155,6 +155,14 @@ public sealed record AircraftSpec
     /// <summary>Damage one round does to a component, before any multiplier.</summary>
     public double RoundDamage { get; init; } = 0.085;
 
+    /// <summary>
+    /// Airframe taken off by every round that connects, whatever it hits. At 0.042
+    /// an aircraft comes apart after about twenty-four hits, which is a few good
+    /// bursts. This is the number that decides how long a fight lasts, and it wants
+    /// to be slow enough that fire and a wounded pilot get a chance to matter first.
+    /// </summary>
+    public double RoundIntegrityDamage { get; init; } = 0.042;
+
     /// <summary>Level stall speed at sea level, m/s. Derived, not configured.</summary>
     public double StallSpeedSeaLevel =>
         Math.Sqrt(2.0 * MassKg * Atmosphere.Gravity /
@@ -187,9 +195,26 @@ public sealed record AircraftSpec
         EnginePowerW = 149_000.0,   // ~200 hp, up from the real 130
         PropEfficiency = 0.78,
         StaticThrustN = 4200.0,
-        ClMax = 1.35,
-        GLimit = 6.0,
-        TurnRateScale = 1.15,
+
+        // The first pass peaked at 76 deg/s, which is a 4.7 second loop, and it
+        // felt like flying a barge. Snappiness comes from raising the aerodynamic
+        // ceiling, NOT from winding up TurnRateScale: that knob only speeds up the
+        // nose, and the wing still cannot make the lift to match, so the angle of
+        // attack runs away and the aircraft stalls in the middle of the turn.
+        // Lighter airframe, more lift, more G. Now about 113 deg/s and a 3.2 s loop.
+        MassKg = 545.0,
+        ClMax = 1.95,
+        GLimit = 8.5,
+        TurnRateScale = 1.0,
+        MaxSlewRateRad = 4.5,
+
+        // A push at a third of a pull made "nose down" feel dead. Inversion still
+        // has to cost something, but 40 percent is a penalty and 67 percent was a
+        // punishment.
+        PushFactor = 0.60,
+
+        // The tail was fighting the pilot harder than it needed to.
+        WeathercockGain = 2.0,
     };
 
     /// <summary>

@@ -21,6 +21,16 @@ public static class Damage
     /// <summary>Rounds through the tank hurt more than rounds through structure.</summary>
     private const double FuelDamageMultiplier = 1.4;
 
+    /// <summary>Cockpit hits needed to finish a pilot. Four, not one.</summary>
+    private const double PilotDamagePerHit = 0.26;
+
+    /// <summary>
+    /// Rounds through the engine bay before the propeller stops. An aircraft with a
+    /// dead engine is not dead, it is a glider looking for a field, which is a far
+    /// better ending than a number reaching zero.
+    /// </summary>
+    private const double EngineFailThreshold = 0.05;
+
     /// <summary>
     /// Resolve one hit. <paramref name="alongSpine"/> is 0 at the tail and 1 at
     /// the nose, so the geometry decides what got hit rather than a flat roll.
@@ -31,15 +41,27 @@ public static class Damage
         if (!s.IsAlive) return Component.None;
 
         s.HitsTaken++;
+
+        // Every round takes a slice of the airframe, whatever it went through, so
+        // that sustained fire is reliably lethal and a kill is never a lottery.
+        s.AirframeIntegrity = Math.Max(0.0, s.AirframeIntegrity - spec.RoundIntegrityDamage);
+
         Component component = PickComponent(alongSpine, ref rng);
         double damage = spec.RoundDamage;
 
         switch (component)
         {
             case Component.Pilot:
-                // The one hit nothing recovers from.
-                s.IsAlive = false;
-                s.Death = DeathCause.Gunfire;
+                // Wounds, then kills. A single round through the cockpit ending the
+                // round felt arbitrary and taught nobody anything, so the pilot has
+                // to be worn down like everything else. Being wounded already costs
+                // control authority, so the first hit is felt long before the last.
+                s.PilotHealth = Math.Max(0.0, s.PilotHealth - PilotDamagePerHit);
+                if (s.PilotHealth <= 0.0)
+                {
+                    s.IsAlive = false;
+                    s.Death = DeathCause.Gunfire;
+                }
                 break;
 
             case Component.Engine:
@@ -117,6 +139,19 @@ public static class Damage
     public static void Step(AircraftState s, AircraftSpec spec, double dt)
     {
         if (!s.IsAlive) return;
+
+        // Shot to pieces. The airframe clock decides WHEN an aircraft goes down, so
+        // that sustained fire is reliable. What is most broken decides HOW, so the
+        // ending still reads as a story rather than a single generic cause.
+        if (s.AirframeIntegrity <= 0.0)
+        {
+            s.IsAlive = false;
+            s.Death =
+                s.OnFire ? DeathCause.Fire :
+                s.PilotHealth < 0.6 ? DeathCause.Gunfire :
+                DeathCause.StructuralFailure;
+            return;
+        }
 
         if (s.OnFire)
         {

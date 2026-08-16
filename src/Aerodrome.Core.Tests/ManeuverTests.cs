@@ -461,8 +461,13 @@ public class ManeuverTests
         FlightModel.Step(upright, spec, new AircraftInput { ThrottleCommand = 1, HeadingCommand = command }, Arena.TestRange);
         FlightModel.Step(inverted, spec, new AircraftInput { ThrottleCommand = 1, HeadingCommand = command }, Arena.TestRange);
 
-        Assert.True(Math.Abs(upright.SlewRateRad) > Math.Abs(inverted.SlewRateRad) * 2.0,
-            "pulling the nose up must be far faster upright than inverted");
+        // Measured against the spec, not a magic number, because the push penalty is
+        // a feel knob that gets retuned. What must never change is the direction of
+        // the inequality: upright is always the faster way to raise the nose.
+        double ratio = Math.Abs(inverted.SlewRateRad) / Math.Abs(upright.SlewRateRad);
+        Assert.Equal(spec.PushFactor, ratio, 2);
+        Assert.True(spec.PushFactor < 0.85,
+            "if a push ever gets close to a pull, the roll key stops meaning anything");
     }
 
     [Fact]

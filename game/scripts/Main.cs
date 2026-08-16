@@ -24,6 +24,7 @@ public sealed partial class Main : Node3D
     private Hud _hud = null!;
     private Minimap _minimap = null!;
     private readonly List<AircraftView> _views = new();
+    private readonly List<DamageEffects> _effects = new();
     private BulletView _bulletView = null!;
     private PilotAi _enemyPilot = null!;
     private AiSkill _skill = AiSkill.Veteran;
@@ -80,11 +81,19 @@ public sealed partial class Main : Node3D
         (16.00, "05-dogfight",        false),
         (21.00, "06-dogfight-late",   false),
         (23.80, "07-tracers",         false),
+        (28.00, "08-smoking",         false),
+        (31.50, "09-burning",         false),
     };
 
     private void RunCapture(double delta)
     {
         _captureTime += delta;
+
+        // Force damage on so the capture always exercises the smoke and fire trails.
+        // Capture mode only: nothing here runs in a normal session.
+        var player = _sim.Player.State;
+        if (_captureTime is > 26.0 and < 26.2) { player.EngineHealth = 0.25; player.AirframeIntegrity = 0.45; }
+        if (_captureTime is > 30.0 and < 30.2) { player.OnFire = true; player.FireTime = 0; }
 
         if (_nextShot >= CaptureSchedule.Length)
         {
@@ -159,11 +168,21 @@ public sealed partial class Main : Node3D
 
         _enemyPilot = new PilotAi(_skill, seed + 101u);
 
+        foreach (var effect in _effects) effect.QueueFree();
+        _effects.Clear();
+
         foreach (var aircraft in _sim.Aircraft)
         {
             var view = AircraftView.Create(aircraft, aircraft.Team == Team.Player ? PlayerColor : EnemyColor);
             AddChild(view);
             _views.Add(view);
+
+            // Trails live in world space, so they hang off the scene root rather
+            // than the aircraft. Parenting them to the model would drag the smoke
+            // along with it instead of leaving it behind.
+            var effect = DamageEffects.Create();
+            AddChild(effect);
+            _effects.Add(effect);
         }
 
         _bulletView = BulletView.Create(_sim.Bullets, playerTeam: 0);
@@ -203,7 +222,12 @@ public sealed partial class Main : Node3D
 
     public override void _Process(double delta)
     {
-        _input.FacingHint = _sim.Player.State.Facing;
+        // The aim code needs to know where the nose is and which way a pull goes,
+        // so a held stick can keep the turn coming instead of parking on a heading.
+        var player = _sim.Player.State;
+        _input.FacingHint = player.Facing;
+        _input.NoseHeading = player.Theta;
+        _input.CanopySign = player.CanopySign;
 
         if (_input.ConsumeViewToggle()) _camera.ToggleFarView();
         if (Input.IsActionJustPressed(InputBindings.DebugOverlay)) _hud.ShowDebug = !_hud.ShowDebug;
@@ -222,6 +246,12 @@ public sealed partial class Main : Node3D
         _camera.Render(alpha, delta);
         foreach (var view in _views) view.Render(alpha, _camera.VisibleWidthM);
         _bulletView.Render();
+
+        for (int i = 0; i < _effects.Count; i++)
+        {
+            var rs = _sim.Aircraft[i].Interpolated(alpha);
+            _effects[i].Render(_sim.Aircraft[i].State, new Vector3((float)rs.X, (float)rs.Y, 0f));
+        }
 
         if (_shotDir is not null) RunCapture(delta);
     }

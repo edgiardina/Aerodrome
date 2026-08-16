@@ -151,6 +151,31 @@ public sealed class AircraftState
     public double TailHealth = 1.0;
     public double FuelSystemHealth = 1.0;
 
+    /// <summary>
+    /// The pilot. Not a one-shot kill any more: a round through the cockpit wounds
+    /// before it kills. Losing a round to a single lucky bullet teaches nobody
+    /// anything and feels arbitrary.
+    /// </summary>
+    public double PilotHealth = 1.0;
+
+    /// <summary>True once the pilot has taken a hit. Costs control authority.</summary>
+    public bool IsWounded => PilotHealth < 0.99;
+
+    /// <summary>
+    /// How much airframe is left, 1 down to 0. Every round takes a slice regardless
+    /// of what it went through.
+    ///
+    /// This is what actually kills most aircraft, and it exists so that shooting
+    /// somebody is reliable. Component damage alone made kills a lottery: you could
+    /// put twenty rounds into a target and have nothing decisive happen because none
+    /// of them found the tank or the pilot. Keep hitting and the aeroplane comes
+    /// apart. The components decide how it feels on the way down.
+    /// </summary>
+    public double AirframeIntegrity = 1.0;
+
+    /// <summary>0 is untouched, 1 is about to fall out of the sky. Drives the smoke.</summary>
+    public double VisibleDamage => 1.0 - AirframeIntegrity;
+
     /// <summary>A fuel fire. There is no extinguisher. It is a countdown.</summary>
     public bool OnFire;
     public double FireTime;
@@ -160,10 +185,10 @@ public sealed class AircraftState
     public Component LastHit;
 
     /// <summary>
-    /// Nose authority left after tail and control damage. A shot-away tail is what
-    /// turns a fighter into a target.
+    /// Nose authority left after tail, control, and pilot damage. A shot-away tail
+    /// is what turns a fighter into a target, and a wounded pilot flies worse.
     /// </summary>
-    public double EffectiveControl => ControlHealth * TailHealth;
+    public double EffectiveControl => ControlHealth * TailHealth * (0.55 + 0.45 * PilotHealth);
 
     // --- Guns ---
     public int Ammo;

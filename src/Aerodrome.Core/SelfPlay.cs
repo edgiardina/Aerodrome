@@ -37,6 +37,48 @@ public readonly record struct SelfPlayResult(
 /// </summary>
 public static class SelfPlay
 {
+    /// <summary>
+    /// Deaths broken down by side and cause. Aggregate totals hid the reason a
+    /// matchup was lopsided more than once, because "someone crashed a lot" and
+    /// "someone got shot a lot" look identical until you know which side it was.
+    /// </summary>
+    public static string DeathBreakdown(
+        int matches, AiSkill blueSkill, AiSkill redSkill, uint seed = 1, AircraftSpec? spec = null)
+    {
+        spec ??= AircraftSpec.CamelArcade;
+        var arena = DefaultArena;
+        var blue = new int[8];
+        var red = new int[8];
+
+        for (int i = 0; i < matches; i++)
+        {
+            uint matchSeed = seed + (uint)i * 7919u;
+            var match = Match.Duel(arena, spec, matchSeed);
+            var bluePilot = new PilotAi(blueSkill, matchSeed + 11u);
+            var redPilot = new PilotAi(redSkill, matchSeed + 23u);
+
+            int limit = (int)(120 * FlightModel.TickRate);
+            for (int t = 0; t < limit && match.Outcome == RoundOutcome.InProgress; t++)
+            {
+                var b = match.Combatants[0];
+                var r = match.Combatants[1];
+                b.Input = bluePilot.Fly(b, match.NearestEnemy(b), arena, FlightModel.FixedDt);
+                r.Input = redPilot.Fly(r, match.NearestEnemy(r), arena, FlightModel.FixedDt);
+                match.Step();
+            }
+
+            blue[(int)match.Combatants[0].State.Death]++;
+            red[(int)match.Combatants[1].State.Death]++;
+        }
+
+        string Fmt(int[] d, string who) =>
+            $"{who}: survived {d[(int)DeathCause.None]}, ground {d[(int)DeathCause.Ground]}, " +
+            $"guns {d[(int)DeathCause.Gunfire]}, fire {d[(int)DeathCause.Fire]}, " +
+            $"structure {d[(int)DeathCause.StructuralFailure]}, fled {d[(int)DeathCause.Fled]}";
+
+        return $"{Fmt(blue, blueSkill.Name + " (blue)")}\n    {Fmt(red, redSkill.Name + " (red)")}";
+    }
+
     public static SelfPlayResult Run(
         int matches,
         AiSkill? blueSkill = null,
@@ -99,6 +141,28 @@ public static class SelfPlay
             matches > 0 ? totalSeconds / matches : 0,
             matches > 0 ? totalHits / matches : 0,
             ground, gunfire, fire, structural, fled);
+    }
+
+    /// <summary>
+    /// Win rate of <paramref name="a"/> against <paramref name="b"/>, flown from
+    /// both sides and combined.
+    ///
+    /// Always compare this way. Measuring two pilots against a common third is
+    /// worthless here: the baseline carries its own sampling error, and a mirror
+    /// match over sixty rounds swings eight points either side of even on noise
+    /// alone. Swapping sides cancels any spawn advantage and doubles the sample,
+    /// so what is left is the skill difference.
+    /// </summary>
+    public static double HeadToHead(
+        AiSkill a, AiSkill b, int matchesPerSide = 60, uint seed = 1, AircraftSpec? spec = null)
+    {
+        var forward = Run(matchesPerSide, a, b, spec, seed: seed);
+        var reversed = Run(matchesPerSide, b, a, spec, seed: seed);
+
+        int wins = forward.TeamZeroWins + reversed.TeamOneWins;
+        int losses = forward.TeamOneWins + reversed.TeamZeroWins;
+
+        return wins + losses > 0 ? (double)wins / (wins + losses) : 0.5;
     }
 
     public static Arena DefaultArena => new()
