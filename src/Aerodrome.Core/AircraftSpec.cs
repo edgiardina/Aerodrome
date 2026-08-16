@@ -75,6 +75,14 @@ public sealed record AircraftSpec
     /// <summary>Turn authority still available at the knife-edge midpoint of a roll.</summary>
     public double MidRollAuthority { get; init; } = 0.30;
 
+    // --- Flat turn (the reversal through the screen) ---
+    /// <summary>Seconds to swap ends with a flat 180. The vulnerability window.</summary>
+    public double FlatTurnSeconds { get; init; } = 0.95;
+    /// <summary>Fraction of airspeed the flat turn costs. This is what you pay instead of altitude.</summary>
+    public double FlatTurnSpeedCost { get; init; } = 0.22;
+    /// <summary>Downward drift during the turn, m/s. The turn is not perfectly coordinated.</summary>
+    public double FlatTurnSagMps { get; init; } = 7.0;
+
     // --- Inverted flight penalties ---
     /// <summary>Seconds inverted before a gravity-fed engine starts to starve.</summary>
     public double InvertedStarveDelayS { get; init; } = 2.0;

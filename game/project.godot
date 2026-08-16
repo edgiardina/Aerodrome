@@ -1,0 +1,34 @@
+; Aerodrome - Godot project settings
+; Scenes are built in code from Main.cs, so this file stays small on purpose.
+
+config_version=5
+
+[application]
+
+config/name="Aerodrome"
+config/description="WW1 side-view dogfighting."
+run/main_scene="res://scenes/Main.tscn"
+config/features=PackedStringArray("4.7", "C#", "Forward Plus")
+
+[display]
+
+window/size/viewport_width=1600
+window/size/viewport_height=900
+window/stretch/mode="canvas_items"
+window/vsync/vsync_mode=1
+
+[dotnet]
+
+project/assembly_name="Aerodrome.Game"
+
+[physics]
+
+common/physics_ticks_per_second=120
+common/max_physics_steps_per_frame=8
+
+[rendering]
+
+renderer/rendering_method="forward_plus"
+anti_aliasing/quality/msaa_3d=2
+anti_aliasing/quality/screen_space_aa=1
+lights_and_shadows/directional_shadow/soft_shadow_filter_quality=2

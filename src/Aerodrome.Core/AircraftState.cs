@@ -40,6 +40,42 @@ public sealed class AircraftState
     /// <summary>Seconds spent inverted, minus recovery. Drives the fuel starvation.</summary>
     public double InvertedTime;
 
+    // --- Flat turn ---
+    /// <summary>0 when not turning. Otherwise 0 to 1 through a flat 180.</summary>
+    public double FlatTurnProgress;
+    public bool IsFlatTurning => FlatTurnProgress > 0;
+
+    /// <summary>
+    /// How far round the flat turn has yawed, in radians, 0 to PI. Rendering only.
+    /// At PI/2 the aircraft points straight into the screen.
+    /// </summary>
+    public double YawAngle => FlatTurnProgress * Math.PI;
+
+    private double _flatTurnEntrySpeed;
+    private double _flatTurnEntryVx;
+    private double _flatTurnEntryVy;
+    private double _flatTurnEntryTheta;
+
+    internal void BeginFlatTurn()
+    {
+        FlatTurnProgress = 1e-6;
+        _flatTurnEntryTheta = Theta;
+        _flatTurnEntryVx = Velocity.X;
+        _flatTurnEntryVy = Velocity.Y;
+        _flatTurnEntrySpeed = Velocity.Length;
+    }
+
+    internal double FlatTurnEntryVx => _flatTurnEntryVx;
+    internal double FlatTurnEntryVy => _flatTurnEntryVy;
+    internal double FlatTurnEntrySpeed => _flatTurnEntrySpeed;
+    internal double FlatTurnEntryTheta => _flatTurnEntryTheta;
+
+    /// <summary>
+    /// True when the guns can bear. During a flat turn the aircraft is pointed into
+    /// or out of the screen, so there is nothing it can shoot at.
+    /// </summary>
+    public bool GunsCanBear => IsAlive && !IsFlatTurning && !GunJammed;
+
     // --- Powerplant ---
     /// <summary>Throttle lever position, 0 to 1. It slews toward the command.</summary>
     public double Throttle;

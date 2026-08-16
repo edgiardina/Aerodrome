@@ -22,6 +22,10 @@ public static class FlightModel
     {
         if (!s.IsAlive) return;
 
+        // A flat turn takes the aircraft out of normal flight for about a second.
+        // It runs its own integration and skips the rest of the model.
+        if (StepFlatTurn(s, spec, input, arena, dt)) return;
+
         StepThrottle(s, spec, input, dt);
         double rollAuthority = StepRoll(s, spec, input, dt);
 
@@ -117,6 +121,83 @@ public static class FlightModel
         double cosRoll = Math.Cos(s.RollAngle);
         s.CanopySign = cosRoll >= 0 ? 1 : -1;
         return spec.MidRollAuthority + (1.0 - spec.MidRollAuthority) * Math.Abs(cosRoll);
+    }
+
+    // --- Flat turn ----------------------------------------------------------
+
+    /// <summary>
+    /// The third way to reverse, and the only one that keeps your altitude.
+    ///
+    /// The aircraft banks and yaws a flat 180 through the screen depth. A loop
+    /// trades height for the reversal. This trades speed and about a second of
+    /// helplessness instead. It is the answer to being roped, and it is the reason
+    /// a slow high opponent is not automatically safe.
+    ///
+    /// While it runs, the nose points into or out of the screen, so the guns cannot
+    /// bear on anything. The X velocity is the projection of a constant-speed 180
+    /// onto our plane, so it passes through zero halfway. That pause is the whole
+    /// cost, and it is what a good opponent shoots at.
+    ///
+    /// Honesty note: a real flat 180 at 60 m/s takes about 11 seconds and 200 m of
+    /// radius. This takes one second. The geometry hides in the Z axis where the
+    /// player cannot see it, so the cheat is invisible and the maneuver plays the
+    /// way the original played. See docs/FEEL.md.
+    /// </summary>
+    /// <returns>True when the flat turn owns this tick and the caller must stop.</returns>
+    private static bool StepFlatTurn(
+        AircraftState s, AircraftSpec spec, AircraftInput input, Arena arena, double dt)
+    {
+        if (!s.IsFlatTurning)
+        {
+            if (!input.FlatTurnPressed || s.RollRemaining > 0 || s.IsSpinning) return false;
+
+            // You cannot swap ends without enough air over the wing. Too slow means
+            // you have to dive for speed first, which costs you the altitude you
+            // were trying to keep.
+            double rhoNow = Atmosphere.Density(s.Position.Y);
+            if (s.Airspeed < StallSpeed(spec, rhoNow) * 1.05) return false;
+
+            s.BeginFlatTurn();
+        }
+
+        s.FlatTurnProgress = Math.Min(1.0, s.FlatTurnProgress + dt / spec.FlatTurnSeconds);
+        double p = s.FlatTurnProgress;
+
+        StepThrottle(s, spec, input, dt);
+
+        double speedScale = 1.0 - spec.FlatTurnSpeedCost * p;
+        double vx = s.FlatTurnEntryVx * Math.Cos(p * Math.PI) * speedScale;
+        double vy = s.FlatTurnEntryVy * speedScale - spec.FlatTurnSagMps * Math.Sin(p * Math.PI);
+
+        s.Velocity = new Vec2(vx, vy);
+        s.Position += s.Velocity * dt;
+
+        // Airspeed is the TRUE speed through space, not the in-plane projection.
+        // Halfway round the turn almost all of the velocity points into the screen,
+        // where we do not simulate, so the projection reads near zero. The aircraft
+        // is flying perfectly well. Reporting the projection would light up every
+        // stall warning on the panel and lie to the pilot.
+        s.Airspeed = s.FlatTurnEntrySpeed * speedScale;
+        s.EnergyHeightM = s.Airspeed * s.Airspeed / (2.0 * Atmosphere.Gravity) + s.Position.Y;
+        s.Alpha = 0.0;
+        s.LoadFactor = 1.0;
+        s.SlewRateRad = 0.0;
+        s.IsStalled = false;
+
+        if (p >= 1.0)
+        {
+            // Commit. Mirror the heading about the vertical, and flip the canopy so
+            // the aircraft leaves the turn the same way up it went in. Doing both
+            // keeps the rendered transform continuous, so there is no visual pop.
+            s.Theta = Angles.Wrap0To2Pi(Math.PI - s.FlatTurnEntryTheta);
+            s.CanopySign = -s.CanopySign;
+            s.RollAngle = s.CanopySign > 0 ? 0.0 : Math.PI;
+            s.FlatTurnProgress = 0.0;
+        }
+
+        UpdateInversion(s, spec, dt);
+        EnforceBounds(s, arena, dt);
+        return true;
     }
 
     // --- Inverted flight ----------------------------------------------------

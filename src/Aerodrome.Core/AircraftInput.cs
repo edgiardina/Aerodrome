@@ -24,6 +24,12 @@ public readonly record struct AircraftInput
     /// <summary>Edge-triggered. A full 360 degree aileron roll that keeps the heading.</summary>
     public bool AileronRollPressed { get; init; }
 
+    /// <summary>
+    /// Edge-triggered. Swap ends with a flat turn through the screen depth. Keeps
+    /// altitude, costs speed and about a second of helplessness.
+    /// </summary>
+    public bool FlatTurnPressed { get; init; }
+
     /// <summary>Edge-triggered. Starts clearing a jammed gun.</summary>
     public bool ClearJamPressed { get; init; }
 

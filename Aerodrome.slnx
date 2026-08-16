@@ -1,4 +1,9 @@
 <Solution>
+  <Folder Name="/game/">
+    <Project Path="game/Aerodrome.Game.csproj">
+      <BuildType Project="Debug" />
+    </Project>
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/Aerodrome.Core.Tests/Aerodrome.Core.Tests.csproj" />
     <Project Path="src/Aerodrome.Core/Aerodrome.Core.csproj" />

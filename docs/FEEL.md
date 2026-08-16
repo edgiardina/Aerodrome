@@ -117,6 +117,69 @@ roll and changes their mind has already paid part of the cost.
 This came out of a failing test, and the model was right. There is now a test
 that pins the behavior, because it is a design property and not an accident.
 
+---
+
+## 2026-08-16 (later): the flat turn
+
+Ed pointed out a missing maneuver, and he was right. The design had only two ways
+to reverse, and both of them are vertical:
+
+- Immelmann: trade speed for height.
+- Split-S: trade height for speed.
+
+The original had a third. Press the direction you are not facing and the aircraft
+swaps ends through the screen depth, keeping its altitude. Without it, a pilot who
+gets roped has no answer that does not cost altitude, and altitude is the thing
+they are short of. It is a real hole in the strategy.
+
+### What it costs
+
+The maneuver has to cost something or it beats the other two every time. Three
+costs, and Ed named all three:
+
+1. **Time.** 0.95 s, and it cannot be interrupted. Heading, roll, and a second
+   press are all ignored until it finishes.
+2. **The guns.** Halfway round, the nose points straight into or out of the
+   screen. Nothing can be shot at. This is the whole vulnerability window, and
+   it is what a good opponent aims at.
+3. **Speed.** 22 percent of airspeed. That is what you pay instead of altitude.
+
+There is a fourth, and it fell out of the model rather than being designed: you
+cannot flat turn below stall speed. Too slow means you must dive for speed first,
+which costs the altitude you were trying to protect.
+
+### How it is modelled
+
+The aircraft yaws 180 degrees about the world Y axis. On commit:
+
+- `Theta` mirrors about the vertical: `theta -> PI - theta`. A 20 degree climb to
+  the right becomes a 20 degree climb to the left.
+- `CanopySign` flips, so the aircraft leaves the turn the same way up it went in.
+
+Both changes together keep the rendered transform continuous, so there is no
+visual pop on the commit tick. The renderer snaps rather than interpolates across
+that one tick, because interpolating a yaw reset against a heading mirror would
+spin the model.
+
+The in-plane X velocity follows `cos(p * PI)`, which is the true projection of a
+constant-speed 180 onto our plane. It passes through zero halfway. The aircraft
+appears to hang for a moment, which is exactly right.
+
+### Honesty note
+
+A real flat 180 at 60 m/s needs about 200 m of radius and takes 11 seconds. This
+takes one. The geometry hides in the Z axis where the player cannot see it, so
+unlike the arcade drag numbers this cheat is invisible. It plays the way the
+original played, which is the point.
+
+### Bug this found
+
+The first version reported in-plane speed as airspeed. Mid-turn the HUD read
+30 km/h and every stall warning lit up, on an aircraft doing 48 m/s. Airspeed now
+reports true speed through space. There is a test that pins it.
+
+---
+
 ### Open items for the next pass
 
 1. Tune against the original in DOSBox. Nothing here has been compared to

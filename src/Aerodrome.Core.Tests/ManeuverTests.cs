@@ -199,6 +199,174 @@ public class ManeuverTests
             $"induced drag must bite: turning lost {turningLoss:F1} m, straight lost {straightLoss:F1} m");
     }
 
+    // --- The flat turn: the third way to reverse -----------------------------
+
+    [Fact]
+    public void A_flat_turn_reverses_facing_while_keeping_altitude()
+    {
+        var rig = new Rig().Spawn(1200, 800, heading: 0.0, speed: 62.0);
+        double startAlt = rig.Altitude;
+        double startSpeed = rig.Speed;
+
+        Assert.True(rig.FlatTurn(), "the flat turn was refused");
+
+        Assert.False(rig.FacingRight);
+        Assert.True(Math.Abs(rig.Altitude - startAlt) < 15,
+            $"a flat turn trades speed, not height: moved {rig.Altitude - startAlt:F1} m");
+        Assert.True(rig.Speed < startSpeed * 0.9,
+            $"a flat turn must cost real speed: {startSpeed:F1} -> {rig.Speed:F1} m/s");
+    }
+
+    [Fact]
+    public void A_flat_turn_mirrors_the_heading_about_the_vertical()
+    {
+        // Climbing to the right at 20 degrees comes out climbing to the left at 20.
+        double entry = Angles.ToRadians(20);
+        var rig = new Rig().Spawn(1200, 700, entry, 65.0);
+
+        Assert.True(rig.FlatTurn());
+
+        Assert.Equal(Angles.ToRadians(160), rig.State.Theta, 3);
+    }
+
+    [Fact]
+    public void A_flat_turn_leaves_you_the_same_way_up_you_went_in()
+    {
+        var upright = new Rig().Spawn(1200, 800, 0.0, 62.0);
+        Assert.False(upright.State.IsInverted);
+        Assert.True(upright.FlatTurn());
+        Assert.False(upright.State.IsInverted, "upright in, upright out");
+
+        var inverted = new Rig().Spawn(1200, 800, 0.0, 62.0, inverted: true);
+        Assert.True(inverted.State.IsInverted);
+        Assert.True(inverted.FlatTurn());
+        Assert.True(inverted.State.IsInverted, "inverted in, inverted out");
+    }
+
+    [Fact]
+    public void The_guns_cannot_bear_during_a_flat_turn()
+    {
+        var rig = new Rig().Spawn(1200, 800, 0.0, 62.0);
+        Assert.True(rig.State.GunsCanBear);
+
+        rig.Tick(new AircraftInput { ThrottleCommand = 1.0, FlatTurnPressed = true });
+        Assert.True(rig.State.IsFlatTurning);
+
+        int masked = 0, total = 0;
+        while (rig.State.IsFlatTurning && rig.State.IsAlive)
+        {
+            total++;
+            if (!rig.State.GunsCanBear) masked++;
+            rig.Tick(new AircraftInput { ThrottleCommand = 1.0, FireHeld = true });
+        }
+
+        Assert.Equal(total, masked);
+        Assert.True(rig.State.GunsCanBear, "the guns come back once you are round");
+    }
+
+    [Fact]
+    public void Airspeed_stays_honest_through_a_flat_turn()
+    {
+        // The in-plane velocity passes through zero halfway round, because most of
+        // the motion is pointed into the screen. The aircraft is not stalling, and
+        // the reported airspeed must not pretend it is.
+        var spec = AircraftSpec.CamelArcade;
+        var rig = new Rig(spec).Spawn(1200, 800, 0.0, 62.0);
+
+        rig.Tick(new AircraftInput { ThrottleCommand = 1.0, FlatTurnPressed = true });
+
+        double slowest = double.MaxValue;
+        while (rig.State.IsFlatTurning && rig.State.IsAlive)
+        {
+            slowest = Math.Min(slowest, rig.State.Airspeed);
+            Assert.False(rig.State.IsStalled, "a flat turn is not a stall");
+            rig.Tick(new AircraftInput { ThrottleCommand = 1.0 });
+        }
+
+        Assert.True(slowest > spec.StallSpeedSeaLevel,
+            $"reported airspeed dipped to {slowest:F1} m/s, below the {spec.StallSpeedSeaLevel:F1} m/s stall");
+    }
+
+    [Fact]
+    public void The_flat_turn_takes_about_as_long_as_the_spec_says()
+    {
+        var spec = AircraftSpec.CamelArcade;
+        var rig = new Rig(spec).Spawn(1200, 800, 0.0, 62.0);
+
+        double start = rig.Time;
+        Assert.True(rig.FlatTurn());
+        double elapsed = rig.Time - start;
+
+        Assert.InRange(elapsed, spec.FlatTurnSeconds - 0.05, spec.FlatTurnSeconds + 0.05);
+    }
+
+    [Fact]
+    public void You_cannot_flat_turn_below_stall_speed()
+    {
+        var spec = AircraftSpec.CamelArcade;
+        var rig = new Rig(spec).Spawn(1200, 900, 0.0, spec.StallSpeedSeaLevel * 0.85);
+
+        Assert.False(rig.FlatTurn(),
+            "too slow to swap ends - you have to dive for speed first, and that costs the altitude");
+    }
+
+    [Fact]
+    public void A_flat_turn_cannot_be_interrupted_or_stacked()
+    {
+        var rig = new Rig().Spawn(1200, 800, 0.0, 62.0);
+        rig.Tick(new AircraftInput { ThrottleCommand = 1.0, FlatTurnPressed = true });
+
+        double entryTheta = rig.State.Theta;
+
+        // Spam every other control mid-turn. None of it may take effect.
+        for (int i = 0; i < 20; i++)
+            rig.Tick(new AircraftInput
+            {
+                ThrottleCommand = 1.0,
+                HeadingCommand = Angles.ToRadians(90),
+                RollPressed = true,
+                FlatTurnPressed = true,
+            });
+
+        Assert.True(rig.State.IsFlatTurning);
+        Assert.Equal(entryTheta, rig.State.Theta, 9);
+        Assert.Equal(0.0, rig.State.RollRemaining, 9);
+    }
+
+    [Fact]
+    public void The_three_reversals_cost_three_different_things()
+    {
+        // This is the whole point of having all three. Same entry, same speed,
+        // three very different prices.
+        const double alt = 900, speed = 66;
+
+        var immelmann = new Rig().Spawn(1200, alt, 0.0, speed);
+        immelmann.Pull(Math.PI);
+        immelmann.HalfRoll();
+
+        var splitS = new Rig().Spawn(1200, alt, 0.0, speed);
+        splitS.HalfRoll();
+        splitS.Pull(Math.PI);
+
+        var flat = new Rig().Spawn(1200, alt, 0.0, speed);
+        flat.FlatTurn();
+
+        // All three end up pointed the other way and the right way up.
+        foreach (var rig in new[] { immelmann, splitS, flat })
+        {
+            Assert.False(rig.FacingRight);
+            Assert.False(rig.State.IsInverted);
+        }
+
+        Assert.True(immelmann.Altitude > alt + 50, "the Immelmann buys height");
+        Assert.True(splitS.Altitude < alt - 50, "the Split-S spends height");
+        Assert.True(Math.Abs(flat.Altitude - alt) < 20, "the flat turn keeps height");
+
+        // And the flat turn is far and away the quickest of the three.
+        Assert.True(flat.Time < immelmann.Time * 0.5);
+        Assert.True(flat.Time < splitS.Time * 0.5);
+    }
+
     [Fact]
     public void Push_authority_is_a_fraction_of_pull_authority()
     {

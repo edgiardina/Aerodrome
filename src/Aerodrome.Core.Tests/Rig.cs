@@ -101,6 +101,19 @@ internal sealed class Rig
         }
     }
 
+    /// <summary>Press the flat turn key and fly it out. Returns false if it was refused.</summary>
+    public bool FlatTurn(double throttle = 1.0)
+    {
+        Tick(new AircraftInput { ThrottleCommand = throttle, FlatTurnPressed = true });
+        if (!State.IsFlatTurning) return false;
+
+        int guard = (int)(5.0 * FlightModel.TickRate);
+        while (State.IsFlatTurning && State.IsAlive && guard-- > 0)
+            Tick(new AircraftInput { ThrottleCommand = throttle });
+
+        return true;
+    }
+
     public double Altitude => State.Position.Y;
     public double Speed => State.Airspeed;
     public double EnergyHeight => State.EnergyHeightM;
