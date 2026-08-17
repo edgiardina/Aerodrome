@@ -73,6 +73,8 @@ public sealed class SimAircraft
             Elevator = ElevatorDemand(s, Spec),
             Rudder = RudderDemand(s),
             Airspeed = s.Airspeed,
+            VelocityX = s.Velocity.X,
+            VelocityY = s.Velocity.Y,
             IsAlive = s.IsAlive,
         };
     }

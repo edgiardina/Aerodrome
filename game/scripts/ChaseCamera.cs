@@ -33,6 +33,12 @@ public sealed partial class ChaseCamera : Camera3D
     public static double MaxDuelWidthM = 520.0;
     /// <summary>Range within which the camera frames both fighters instead of just the player.</summary>
     public static double FramingRangeM = 330.0;
+
+    /// <summary>
+    /// How wide a band the duel framing fades in over, ending at FramingRangeM.
+    /// Without it the two framings swap instantly and the view pumps.
+    /// </summary>
+    public static double BlendBandM = 130.0;
     /// <summary>Meters the player may drift before the camera starts to chase.</summary>
     public const double DeadzoneM = 9.0;
 
@@ -128,8 +134,20 @@ public sealed partial class ChaseCamera : Camera3D
         var prs = player.Interpolated(alpha);
         var playerPos = new Vector2((float)prs.X, (float)prs.Y);
 
+        // Solo framing: look where you are FLYING, not where the nose happens to be
+        // pointed. Those are different, and the difference grew the day the
+        // elevator got quick: the nose can now swing most of a right angle in a
+        // tenth of a second, and hanging a sixty metre lead vector off it threw the
+        // camera across the arena every time the pilot twitched. The flight path is
+        // what the camera should follow, and it is smooth by construction.
+        var velocity = new Vector2((float)prs.VelocityX, (float)prs.VelocityY);
+        float speedFraction = Math.Min(1f, velocity.Length() / 75f);
+        Vector2 lead = velocity.Normalized() * (float)(NearViewWidthM * 0.25 * speedFraction);
+
+        Vector2 desired = playerPos + lead;
+        double width = NearViewWidthM;
+
         var opponent = _sim.NearestOpponent(player);
-        Vector2 desired;
 
         if (opponent is not null)
         {
@@ -137,36 +155,70 @@ public sealed partial class ChaseCamera : Camera3D
             var oppPos = new Vector2((float)ors.X, (float)ors.Y);
             float separation = playerPos.DistanceTo(oppPos);
 
-            if (separation < FramingRangeM)
+            // Cross-fade into duel framing rather than switching to it.
+            //
+            // A hard threshold here was the second source of bounce, and the worst
+            // of them. At one metre outside the range the camera wanted 250 m of
+            // width; one metre inside it wanted 520. A dogfight sits on top of that
+            // boundary and crosses it several times a second, so the view pumped in
+            // and out by a factor of two the whole time.
+            float blend = 1f - Smoothstep((float)(FramingRangeM - BlendBandM), (float)FramingRangeM, separation);
+
+            if (blend > 0f)
             {
                 // Duel framing. Bias toward the player so the fight never drifts to
                 // the edge of the screen while the enemy hogs the middle.
-                desired = playerPos.Lerp(oppPos, 0.4f);
+                Vector2 duel = playerPos.Lerp(oppPos, 0.4f);
+
                 // Max() rather than the bare constant: the tuning panel can push the
                 // resting width past the duel limit, and Clamp throws if it does.
-                _targetWidth = Math.Clamp(separation * 2.1 + 90.0,
-                                          NearViewWidthM, Math.Max(MaxDuelWidthM, NearViewWidthM));
-                ApplyDeadzone(desired);
-                return;
+                double duelWidth = Math.Clamp(separation * 2.1 + 90.0,
+                                              NearViewWidthM, Math.Max(MaxDuelWidthM, NearViewWidthM));
+
+                desired = desired.Lerp(duel, blend);
+                width = width + (duelWidth - width) * blend;
             }
         }
 
-        // Solo lead. Look where you are flying, not where you have been.
-        var velocity = new Vector2(
-            (float)(Math.Cos(prs.Theta) * prs.Airspeed),
-            (float)(Math.Sin(prs.Theta) * prs.Airspeed));
-        float speedFraction = Math.Min(1f, velocity.Length() / 75f);
-        Vector2 lead = velocity.Normalized() * (float)(NearViewWidthM * 0.25 * speedFraction);
-
-        _targetWidth = NearViewWidthM;
-        ApplyDeadzone(playerPos + lead);
+        _targetWidth = width;
+        ApplyDeadzone(desired);
     }
 
-    /// <summary>Ignore small drifts so gentle maneuvers do not jitter the whole screen.</summary>
+    private static float Smoothstep(float from, float to, float value)
+    {
+        if (to - from < 1e-6f) return value >= to ? 1f : 0f;
+        float t = Math.Clamp((value - from) / (to - from), 0f, 1f);
+        return t * t * (3f - 2f * t);
+    }
+
+    /// <summary>
+    /// Ignore small drifts so gentle maneuvers do not jitter the whole screen.
+    ///
+    /// The slack is measured from where the camera IS, and once the aircraft is
+    /// outside it the target tracks CONTINUOUSLY, holding the deadzone as a slack
+    /// radius behind it.
+    ///
+    /// Both of those matter, and the first version got both wrong. It compared the
+    /// new position against the last TARGET, and on exceeding the threshold it
+    /// snapped the target onto the aircraft. That produced a loop: the target
+    /// jumps nine metres, the aircraft is now inside the deadzone of the new
+    /// target so the target freezes, the camera eases in and stops, the aircraft
+    /// drifts another nine metres, and it jumps again. At 240 km/h that is about
+    /// eight lurches a second, which is exactly the bouncing this was supposed to
+    /// prevent.
+    /// </summary>
     private void ApplyDeadzone(Vector2 desired)
     {
-        if (desired.DistanceTo(_targetCenter) > DeadzoneM)
-            _targetCenter = desired;
+        Vector2 offset = desired - _center;
+        float distance = offset.Length();
+
+        if (distance <= DeadzoneM)
+        {
+            _targetCenter = _center;
+            return;
+        }
+
+        _targetCenter = desired - offset / distance * (float)DeadzoneM;
     }
 
     /// <summary>

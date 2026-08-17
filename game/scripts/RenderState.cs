@@ -35,6 +35,15 @@ public readonly struct RenderState
     public double Rudder { get; init; }
 
     public double Airspeed { get; init; }
+
+    /// <summary>
+    /// The velocity vector, in m/s. Where the aircraft is actually going, which is
+    /// NOT the direction the nose is pointing and diverges hard under any real
+    /// pull. The camera lead has to use this one.
+    /// </summary>
+    public double VelocityX { get; init; }
+    public double VelocityY { get; init; }
+
     public bool IsAlive { get; init; }
 
     /// <summary>
@@ -60,6 +69,8 @@ public readonly struct RenderState
             Elevator = a.Elevator + (b.Elevator - a.Elevator) * t,
             Rudder = a.Rudder + (b.Rudder - a.Rudder) * t,
             Airspeed = a.Airspeed + (b.Airspeed - a.Airspeed) * t,
+            VelocityX = a.VelocityX + (b.VelocityX - a.VelocityX) * t,
+            VelocityY = a.VelocityY + (b.VelocityY - a.VelocityY) * t,
             IsAlive = b.IsAlive,
         };
     }

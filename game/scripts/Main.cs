@@ -219,6 +219,57 @@ public sealed partial class Main : Node3D
         _nextShot++;
     }
 
+    // --- Camera smoothness trace ---------------------------------------------
+
+    private Vector2 _camLast;
+    private bool _camPrimed;
+    private double _camWindow;
+    private double _camSpeedSum, _camSpeedSqSum, _camWorstJerk, _camLastSpeed;
+    private int _camSamples;
+
+    /// <summary>
+    /// Measure how evenly the camera moves, because a screenshot cannot show it.
+    ///
+    /// The number that matters is the spread of the camera's own speed. A camera
+    /// locked on to a steadily flying aircraft moves at a nearly constant rate, so
+    /// the spread is small. A camera that lurches and then stalls has a speed
+    /// swinging between zero and large, and the spread gives it away immediately.
+    /// </summary>
+    private void TraceCamera(double delta)
+    {
+        if (delta <= 1e-6) return;
+
+        var centre = _camera.CenterM;
+
+        if (!_camPrimed) { _camLast = centre; _camPrimed = true; return; }
+
+        double speed = centre.DistanceTo(_camLast) / delta;
+        _camLast = centre;
+
+        _camWorstJerk = Math.Max(_camWorstJerk, Math.Abs(speed - _camLastSpeed) / delta);
+        _camLastSpeed = speed;
+
+        _camSpeedSum += speed;
+        _camSpeedSqSum += speed * speed;
+        _camSamples++;
+        _camWindow += delta;
+
+        if (_camWindow < 2.0) return;
+
+        double mean = _camSpeedSum / _camSamples;
+        double variance = Math.Max(0.0, _camSpeedSqSum / _camSamples - mean * mean);
+        double spread = mean > 0.01 ? Math.Sqrt(variance) / mean : 0.0;
+
+        GD.Print($"[camera] t={_captureTime,5:F1}s  mean {mean,6:F1} m/s  " +
+                 $"spread {spread,5:F2}  worst jerk {_camWorstJerk,8:F0} m/s^2");
+
+        _camWindow = 0;
+        _camSamples = 0;
+        _camSpeedSum = 0;
+        _camSpeedSqSum = 0;
+        _camWorstJerk = 0;
+    }
+
     private void Shot(string name)
     {
         var image = GetViewport().GetTexture().GetImage();
@@ -452,7 +503,7 @@ public sealed partial class Main : Node3D
 
         SpawnWreckage();
 
-        if (_shotDir is not null) RunCapture(delta);
+        if (_shotDir is not null) { TraceCamera(delta); RunCapture(delta); }
     }
 
     /// <summary>

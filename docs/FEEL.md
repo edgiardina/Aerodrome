@@ -339,3 +339,71 @@ A Veteran still does not beat a Rookie, which is the residue of the same effect
 and is recorded in the test. The lesson worth keeping: measure what the AI is
 DOING, not whether it is winning. Win rate says a pilot is worse. Angle of
 attack, airspeed and cause of death say why.
+
+---
+
+## The camera bounce
+
+Ed: "the camera seems to bounce constantly to follow the plane instead of
+smoothly locked on".
+
+Three causes, and the trace that found them is now permanent. Run a capture and
+the game prints the camera's own speed statistics every two seconds. The number
+to watch is the SPREAD, which is the standard deviation of camera speed over its
+mean. A camera locked on to a steadily flying aircraft moves at a nearly constant
+rate, so the spread is small. One that lurches and stalls swings between zero and
+fast, and the spread shows it at once.
+
+### 1. The deadzone measured from the wrong thing
+
+```
+if (desired.DistanceTo(_targetCenter) > DeadzoneM) _targetCenter = desired;
+```
+
+It compared the aircraft against the last TARGET rather than against the camera,
+and on exceeding the threshold it snapped the target onto the aircraft. That is a
+loop:
+
+1. The target jumps nine metres onto the aircraft.
+2. The aircraft is now inside the deadzone of the NEW target, so the target
+   freezes.
+3. The camera eases in and stops.
+4. The aircraft drifts another nine metres and it jumps again.
+
+At 240 km/h that is about eight lurches a second.
+
+The trace made it unmistakable. The old camera reported a worst jerk of about
+**41,300 m/s² in nearly every two second window**, and it was the same figure
+every time. Hard flying does not produce a constant number. A fixed nine metre
+snap does.
+
+Now the slack is measured from the camera, and once outside it the target tracks
+continuously with the deadzone held as a trailing radius.
+
+### 2. The duel framing had no hysteresis
+
+One metre outside the framing range the camera wanted 250 m of width. One metre
+inside it wanted 520. A dogfight sits on that boundary and crosses it several
+times a second, so the view pumped in and out by a factor of two continuously.
+
+Both the centre and the width now cross-fade over a 130 m band.
+
+### 3. The lead vector hung off the nose
+
+The solo lead used `cos(Theta) * Airspeed`, which is speed along the NOSE rather
+than the velocity vector. Those diverge under any real pull, and they diverged a
+great deal more the day the elevator got quick: the nose can now swing most of a
+right angle in a tenth of a second, and a sixty metre lead vector hanging off it
+threw the camera across the arena every time the pilot twitched.
+
+The camera now reads the true velocity, which is smooth by construction.
+`RenderState` carries it.
+
+### Measured
+
+Steady flight, ignoring the deliberate Far View transitions:
+
+| | before | after |
+|---|---|---|
+| speed spread | 0.37 to 1.08 | 0.02 to 0.13 |
+| worst jerk | ~41,300 m/s² every window | 44 to 4,900 m/s² |
