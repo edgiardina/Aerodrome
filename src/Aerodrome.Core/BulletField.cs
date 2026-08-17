@@ -155,7 +155,7 @@ public sealed class BulletField
             target.HitSpine(out Vec2 nose, out Vec2 tail);
             double distance = Geometry.SegmentDistance(from, b.Position, tail, nose, out double t);
 
-            if (distance > target.Spec.HitRadiusM) continue;
+            if (distance > target.Spec.HitRadiusM * target.State.EvasionRadiusScale) continue;
             if (t >= bestT) continue;
 
             bestT = t;

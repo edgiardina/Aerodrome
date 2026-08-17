@@ -120,6 +120,7 @@ public sealed partial class CockpitPanel : Control
         float outboard = DialSpacing * 2.5f + DialRadius + 46f;
         AmmoCounter(new Vector2(centre - outboard, y), s, spec);
         GunTemperature(new Vector2(centre + outboard, y), s);
+        PilotReserve(new Vector2(centre + outboard + 52f, y), s, spec);
 
         // The maker's plate. It is the only thing on screen that says which
         // aeroplane you are sitting in, and with F8 swapping sides that matters.
@@ -318,6 +319,38 @@ public sealed partial class CockpitPanel : Control
         string label = s.GunJammed ? "JAM" : "GUNS";
         DrawString(_font, new Vector2(centre.X - 26f, tube.End.Y + 14f), label,
                    HorizontalAlignment.Center, 52f, 9, s.GunJammed ? RedLine : DialDim);
+    }
+
+    /// <summary>
+    /// What the pilot has left, and therefore how many defensive breaks are in
+    /// hand. The notches are the cost of one break each, so the count is readable
+    /// at a glance rather than being a percentage to do arithmetic on.
+    /// </summary>
+    private void PilotReserve(Vector2 centre, AircraftState s, AircraftSpec spec)
+    {
+        var tube = new Rect2(centre.X - 8f, centre.Y - 26f, 16f, 52f);
+
+        DrawRect(tube, new Color(0.05f, 0.05f, 0.05f), true);
+        DrawRect(tube, BrassDark, false, 1.6f);
+
+        float inner = tube.Size.Y - 4f;
+        float h = (float)Math.Clamp(s.Reserve, 0, 1) * inner;
+
+        bool spent = s.Reserve < spec.BreakCost;
+        var colour = spent ? RedLine : s.Reserve < spec.BreakCost * 2 ? Warn : new Color(0.55f, 0.72f, 0.92f);
+        DrawRect(new Rect2(tube.Position.X + 2f, tube.End.Y - 2f - h, tube.Size.X - 4f, h), colour, true);
+
+        // One notch per break. Below the bottom notch there is nothing left to fly
+        // one with, which is the line that matters.
+        for (int i = 1; i * spec.BreakCost < 1.0; i++)
+        {
+            float mark = tube.End.Y - 2f - (float)(i * spec.BreakCost) * inner;
+            DrawLine(new Vector2(tube.Position.X - 3f, mark), new Vector2(tube.End.X + 3f, mark),
+                     i == 1 ? Dial : DialDim, 1f);
+        }
+
+        DrawString(_font, new Vector2(centre.X - 26f, tube.End.Y + 14f), "PILOT",
+                   HorizontalAlignment.Center, 52f, 9, spent ? RedLine : DialDim);
     }
 
     // --- Dial furniture -------------------------------------------------------

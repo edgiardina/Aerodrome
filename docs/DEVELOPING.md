@@ -153,6 +153,36 @@ Note that the F4 panel resets to the defaults of whatever you are now flying.
 Its values are absolute numbers for YOUR aircraft, so the reference changes when
 you swap, and carrying them across would turn the triplane into a Camel.
 
+## The defensive break
+
+`Q`, or **X** on the pad. A full 360 degree roll flown to spoil somebody's gun
+solution, and the only purely defensive move in the game. Every other answer to
+being shot at is a reposition that takes a second or two. This one answers "he is
+on my tail right now".
+
+While it runs your hit capsule shrinks to 42 percent, so most of a burst misses.
+
+It has to cost something or every fight becomes a rolling contest, and the cost
+is the pilot:
+
+- One break spends about a third of the **PILOT** gauge, so you get three.
+- An empty pilot cannot fly one at all. The HUD says `SPENT`.
+- The gauge also sets how much G you can stand. Empty, you pull 60 percent of the
+  airframe's limit, which takes a hard turn from 68 deg/s down to 39. Measured
+  over one second of full back stick: 73 degrees fresh, 49 degrees spent.
+- It scrubs 7 percent of your airspeed.
+- It refills in about twelve seconds of not using it.
+
+The notches on the gauge are one break each, so the count is readable without
+doing arithmetic on a percentage.
+
+**The half roll is not a break and stays free.** It is how you get upright after
+an Immelmann, and charging for that would tax the maneuver set rather than the
+evasion. There is a test pinning it.
+
+The AI uses breaks on the same terms, when somebody is close and dead astern with
+their nose on it.
+
 ## Control surfaces need airspeed
 
 Ailerons, elevator and rudder work by deflecting air, so their power goes with

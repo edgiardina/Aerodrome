@@ -146,6 +146,53 @@ public sealed class AircraftState
     public bool RollRefused;
 
     /// <summary>
+    /// What is left in the pilot, 0 to 1.
+    ///
+    /// Throwing a scout through a defensive break is violent, physical work, and in
+    /// 1917 there was nothing between the pilot and the G but their own neck. This
+    /// is what a break spends and what limits how many you get.
+    ///
+    /// It also sets how hard you can pull, so a pilot who has just thrown three
+    /// breaks is worn out and turning badly for a while afterwards. That is the
+    /// whole trade: the break buys you the moment and costs you the next ten
+    /// seconds.
+    /// </summary>
+    public double Reserve = 1.0;
+
+    /// <summary>True while a defensive break is being flown.</summary>
+    public bool IsBreaking;
+
+    /// <summary>Asked for a break with nothing left to fly it with. HUD cue only.</summary>
+    public bool BreakRefused;
+
+    /// <summary>
+    /// How much of the airframe's G limit the pilot can actually use, given how
+    /// spent they are. Never falls to nothing: exhausted still flies, it just does
+    /// not fight well.
+    ///
+    /// This is applied to the G LIMIT rather than to control authority, and the
+    /// difference is the whole point. Control authority only sets how fast the nose
+    /// reaches the angle of attack it is allowed; the sustained turn is decided by
+    /// the lift the wing then makes. Scaling authority produced a measured one
+    /// degree difference over a second of hard pulling, which is nothing. Scaling
+    /// the G the pilot can stand takes a 68 deg/s turn down to 39, which is the
+    /// difference between holding a fight and losing it.
+    ///
+    /// Physically it is also the right place: G tolerance is a property of the
+    /// pilot, not the aeroplane. The airframe limit is separate and never moves.
+    /// </summary>
+    public double PilotGTolerance => 0.60 + 0.40 * Math.Clamp(Reserve, 0.0, 1.0);
+
+    /// <summary>
+    /// Multiplier on the hit capsule while breaking.
+    ///
+    /// A rolling, jinking aircraft is a smaller and far less predictable target,
+    /// and this is the honest place to express that: the rounds are already in the
+    /// air, so there is nothing left to spoil except the geometry they arrive at.
+    /// </summary>
+    public double EvasionRadiusScale => IsBreaking ? 0.42 : 1.0;
+
+    /// <summary>
     /// Energy height in meters: the altitude this aircraft could reach by trading
     /// away all of its speed. The single most useful number in a dogfight.
     /// </summary>

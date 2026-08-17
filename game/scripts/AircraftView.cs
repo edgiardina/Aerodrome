@@ -1,3 +1,4 @@
+using System;
 using Aerodrome.Core;
 using Godot;
 
@@ -24,8 +25,16 @@ public sealed partial class AircraftView : Node3D
     private const float ElevatorTravel = 0.38f;  // 22 degrees
     private const float RudderTravel = 0.52f;    // 30 degrees
 
+    /// <summary>How long a single shot lights the muzzle, in seconds.</summary>
+    private const double FlashSeconds = 0.045;
+
     private BiplaneFactory.Parts _parts = null!;
     private Node3D _icon = null!;
+    private Node3D _muzzle = null!;
+    private OmniLight3D _muzzleLight = null!;
+
+    private int _lastAmmo = int.MaxValue;
+    private double _flashFor;
 
     public SimAircraft Aircraft { get; private set; } = null!;
 
@@ -36,8 +45,91 @@ public sealed partial class AircraftView : Node3D
         view._icon = BiplaneFactory.BuildIcon(teamColor);
         view.AddChild(view._parts.Root);
         view.AddChild(view._icon);
+
+        // Hung off the airframe rather than the view, so it rides the model's own
+        // orientation and points where the guns point.
+        view._muzzle = BuildMuzzleFlash();
+        view._muzzleLight = BuildMuzzleLight();
+        view._parts.Root.AddChild(view._muzzle);
+        view._parts.Root.AddChild(view._muzzleLight);
+
         return view;
     }
+
+    /// <summary>
+    /// Light the guns when a round leaves them.
+    ///
+    /// Worth more than decoration on both ends. Your own tracers say where the fire
+    /// went, but the flash says the trigger is actually down, which matters when
+    /// the guns can jam or be masked. And an enemy's flash is the first thing that
+    /// tells you that you are being shot at rather than merely followed.
+    ///
+    /// Driven off the ammunition count going down, which is the one signal that a
+    /// round really left the gun.
+    /// </summary>
+    public override void _Process(double delta)
+    {
+        var s = Aircraft.State;
+
+        if (s.Ammo < _lastAmmo && s.IsAlive) _flashFor = FlashSeconds;
+        _lastAmmo = s.Ammo;
+
+        _flashFor = Math.Max(0.0, _flashFor - delta);
+
+        bool lit = _flashFor > 0.0 && _parts.Root.Visible;
+        _muzzle.Visible = lit;
+        _muzzleLight.Visible = lit;
+
+        if (!lit) return;
+
+        // Fades over its own short life, so a burst reads as a rapid flicker rather
+        // than one steady lamp.
+        float t = (float)(_flashFor / FlashSeconds);
+        float size = 0.65f + 0.55f * t;
+
+        _muzzle.Scale = new Vector3(size, size, size);
+        _muzzleLight.LightEnergy = 4.5f * t;
+    }
+
+    private static Node3D BuildMuzzleFlash()
+    {
+        var root = new Node3D { Name = "MuzzleFlash", Visible = false };
+
+        var material = new StandardMaterial3D
+        {
+            ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+            Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+            BlendMode = BaseMaterial3D.BlendModeEnum.Add,
+            BillboardMode = BaseMaterial3D.BillboardModeEnum.Enabled,
+            AlbedoColor = new Color(1.0f, 0.80f, 0.42f, 0.95f),
+            DisableReceiveShadows = true,
+        };
+
+        // Twin Vickers, side by side on the cowl ahead of the cockpit. Model space
+        // is unscaled metres with the nose at +X, so these are real gun positions.
+        for (int i = -1; i <= 1; i += 2)
+            root.AddChild(new MeshInstance3D
+            {
+                Name = $"Flash{i}",
+                Mesh = new QuadMesh { Size = new Vector2(0.62f, 0.38f) },
+                Position = new Vector3(1.95f, 0.52f, i * 0.17f),
+                MaterialOverride = material,
+                CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+            });
+
+        return root;
+    }
+
+    private static OmniLight3D BuildMuzzleLight() => new()
+    {
+        Name = "MuzzleLight",
+        Position = new Vector3(2.1f, 0.52f, 0f),
+        LightColor = new Color(1.0f, 0.74f, 0.36f),
+        OmniRange = 11f,
+        LightEnergy = 0f,
+        ShadowEnabled = false,
+        Visible = false,
+    };
 
     /// <summary>Called from the render step with the frame's interpolation factor.</summary>
     public void Render(double alpha, double visibleWidthM)

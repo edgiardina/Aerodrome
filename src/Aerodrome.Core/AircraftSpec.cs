@@ -124,6 +124,24 @@ public sealed record AircraftSpec
     /// <summary>Turn authority still available at the knife-edge midpoint of a roll.</summary>
     public double MidRollAuthority { get; init; } = 0.30;
 
+    // --- The defensive break -------------------------------------------------
+    // A full 360 degree roll, flown to spoil somebody's gun solution. It is the
+    // only purely defensive move in the game, and the only one that answers "he is
+    // on my tail RIGHT NOW" rather than "he will be in two seconds".
+    //
+    // It has to cost something or it is a free get-out and every fight becomes a
+    // rolling contest. The cost is the pilot: three of them empties the reserve,
+    // and an empty pilot cannot pull hard for the ten seconds it takes to recover.
+
+    /// <summary>Fraction of the pilot's reserve one defensive break spends.</summary>
+    public double BreakCost { get; init; } = 0.34;
+
+    /// <summary>How fast the reserve comes back, per second.</summary>
+    public double ReserveRecoveryPerSecond { get; init; } = 0.085;
+
+    /// <summary>Fraction of airspeed a break costs. Rolling scrubs energy.</summary>
+    public double BreakSpeedCost { get; init; } = 0.07;
+
     // --- Flat turn (the reversal through the screen) ---
     /// <summary>Seconds to swap ends with a flat 180. The vulnerability window.</summary>
     public double FlatTurnSeconds { get; init; } = 0.95;
@@ -203,12 +221,12 @@ public sealed record AircraftSpec
     /// <summary>Damage multiplier at and beyond MaxEffectiveRangeM.</summary>
     public double LongRangeDamageFloor { get; init; } = 0.12;
     /// <summary>
-    /// Every Nth round is a tracer. Real belts were often one in five, but rounds
-    /// cross a 380 m view in half a second, so one in five leaves about two streaks
-    /// on screen and the player cannot read where their fire is going. One in three
-    /// is the smallest change that makes a burst legible.
+    /// Every Nth round is a tracer. Real belts were often one in five, but a round
+    /// crosses a 210 m view in a quarter of a second, so one in five leaves well
+    /// under one streak on screen and the player cannot read where their fire is
+    /// going. One in two is the point at which a burst reads as a stream.
     /// </summary>
-    public int TracerEvery { get; init; } = 3;
+    public int TracerEvery { get; init; } = 2;
     /// <summary>
     /// How fast the guns heat while firing. Turned up from a gentler first pass
     /// because spraying was winning fights: a sloppy pilot with a wide firing cone

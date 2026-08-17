@@ -587,3 +587,60 @@ view. That was tuned when a streak was 17 m long, and a smaller streak carries
 less. Left alone for now because the interpolation makes what is there flow
 properly, which recovers a good deal of the readability on its own. If a burst
 reads as too sparse, that constant is the lever, not the streak size.
+
+---
+
+## The defensive break, and two visibility fixes
+
+Ed: "there's still not enough variation in gameplay. I wonder if the full roll
+should make you inverted or very hard to hit, but the punishment is it makes you
+less manuverable / capped at how many inverts you can do."
+
+That is a good mechanic and it went in close to as described. The aileron roll,
+which previously did nothing but hold heading, is now a **defensive break**: the
+hit capsule shrinks to 42 percent while it runs.
+
+The cost is the pilot, which is both the readable version of "capped" and the
+honest one. Throwing a scout through a violent roll is physical work and there
+was nothing between a 1917 pilot and the G but their own neck.
+
+- One break spends a third of the reserve, so three are in hand.
+- Empty refuses outright.
+- It scrubs seven percent of airspeed.
+- It refills in about twelve seconds.
+
+### Where the "less manoeuvrable" cost had to go
+
+The first attempt scaled CONTROL AUTHORITY with the reserve and it did almost
+nothing: one second of full back stick gave 73 degrees fresh against 72 spent.
+
+Authority only decides how fast the nose reaches the angle of attack it is
+allowed. The sustained turn is decided by the lift the wing then makes, so
+throttling the stick response changes the first tenth of a second and nothing
+after it.
+
+Moving the penalty onto the **G limit** fixed it: 73 degrees fresh, 49 spent.
+That is also the physically correct home for it, because G tolerance belongs to
+the pilot while the structural limit belongs to the airframe, and those are now
+two separate numbers that never touch.
+
+### Tracers, again
+
+"the tracers are now practically invisible." Overcorrected, and the reason is
+worth keeping: a world-space size is not enough on its own. At the normal 210 m
+view, 0.18 m lands on one and a half pixels, and a one pixel line against a pale
+sky is not there.
+
+Tracers now have a **minimum on-screen thickness**, expressed as a fraction of
+the visible arena width, the same way HUD text would be sized. Base thickness
+0.35 m, floor at 0.24 percent of the view. Length 6 m against a 20 m aircraft.
+`TracerEvery` also went from 3 to 2, because a round crosses the tighter view in
+a quarter of a second and one in three left under one streak on screen.
+
+### Muzzle flash
+
+Twin flashes on the cowl, lit for 45 ms per round, driven off the ammunition
+count going down. Useful at both ends: your own says the trigger is genuinely
+down, which matters when the guns can jam or be masked, and an enemy's is the
+first thing that tells you that you are being shot at rather than merely
+followed.

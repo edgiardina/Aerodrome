@@ -30,6 +30,11 @@ public static class FlightModel
             SurfaceAuthority(s, spec, s.Airspeed, Atmosphere.Density(s.Position.Y), stalledNow);
 
         s.RollRefused = false;
+        s.BreakRefused = false;
+
+        // The pilot gets their breath back, but only while not mid-break.
+        if (!s.IsBreaking)
+            s.Reserve = Math.Min(1.0, s.Reserve + spec.ReserveRecoveryPerSecond * dt);
 
         // A flat turn takes the aircraft out of normal flight for about a second.
         // It runs its own integration and skips the rest of the model.
@@ -115,7 +120,23 @@ public static class FlightModel
 
             if (canCommit)
             {
-                if (input.AileronRollPressed) s.RollRemaining = Angles.TwoPi;
+                if (input.AileronRollPressed)
+                {
+                    // A defensive break. Only if there is enough pilot left to fly
+                    // it, because a spent pilot throwing a fourth break in a row is
+                    // the thing this mechanic exists to prevent.
+                    if (s.Reserve >= spec.BreakCost)
+                    {
+                        s.RollRemaining = Angles.TwoPi;
+                        s.IsBreaking = true;
+                        s.Reserve = Math.Max(0.0, s.Reserve - spec.BreakCost);
+                        s.Velocity *= 1.0 - spec.BreakSpeedCost;
+                    }
+                    else
+                    {
+                        s.BreakRefused = true;
+                    }
+                }
                 else if (input.RollPressed) s.RollRemaining = Math.PI;
             }
             else if (input.AileronRollPressed || input.RollPressed)
@@ -137,6 +158,7 @@ public static class FlightModel
             if (s.RollRemaining <= 1e-9)
             {
                 s.RollRemaining = 0;
+                s.IsBreaking = false;
                 // Snap to exactly upright or exactly inverted so thousands of rolls
                 // never accumulate drift.
                 s.RollAngle = Math.Round(s.RollAngle / Math.PI) * Math.PI;
@@ -314,13 +336,17 @@ public static class FlightModel
     /// the radius grows with speed. The peak between the two is corner speed, and the
     /// whole dogfight is a fight to sit on it.
     /// </summary>
-    public static double MaxSlewRate(double airspeed, double density, AircraftSpec spec)
+    /// <summary>
+    /// <paramref name="gScale"/> is how much of the airframe's G limit the pilot
+    /// can currently stand. One is a fresh pilot.
+    /// </summary>
+    public static double MaxSlewRate(double airspeed, double density, AircraftSpec spec, double gScale = 1.0)
     {
         if (airspeed < 1e-3) return 0.0;
 
         double q = 0.5 * density * airspeed * airspeed;
         double liftLimitedG = q * spec.WingAreaM2 * spec.ClMax / (spec.MassKg * Atmosphere.Gravity);
-        double n = Math.Min(liftLimitedG, spec.GLimit);
+        double n = Math.Min(liftLimitedG, spec.GLimit * gScale);
 
         // Below 1 G the wing cannot even hold level flight. Leave a trace of authority
         // so a stalled aircraft still answers a little, but only a little.
@@ -372,7 +398,10 @@ public static class FlightModel
         // square them.
         double authority = rollAuthority * s.EffectiveControl;
 
-        double maxRate = MaxSlewRate(airspeed, density, spec) * authority * stickScale;
+        // The pilot's own G tolerance, spent on defensive breaks and recovered by
+        // not flying any. This is the price of the break, and it is felt in the
+        // sustained turn rather than in how quickly the stick answers.
+        double maxRate = MaxSlewRate(airspeed, density, spec, s.PilotGTolerance) * authority * stickScale;
 
         // The one rule that gives inversion its bite. A pull runs at the full G
         // limit. A push does not. Turning the wrong way up means every fast turn
@@ -414,8 +443,10 @@ public static class FlightModel
         AircraftState s, AircraftSpec spec, double airspeed, double density,
         bool isPull, double authority, double stickScale)
     {
+        // The pilot's limit, not the airframe's: a spent pilot must not be able to
+        // snap the nose to an angle of attack they could not hold anyway.
         double limit = Math.Min(spec.StallAlphaRad * spec.ElevatorLeadFactor,
-                                StructuralAlpha(spec, airspeed, density));
+                                StructuralAlpha(spec, airspeed, density, s.PilotGTolerance));
 
         // Alpha is signed so that positive is toward the canopy, which is a pull.
         // A pull may keep going while alpha is under the limit. A push may keep
@@ -431,13 +462,14 @@ public static class FlightModel
     /// The angle of attack at which the wing makes exactly the structural G limit.
     /// Infinite when there is no wing or no air, which is what the test bodies want.
     /// </summary>
-    private static double StructuralAlpha(AircraftSpec spec, double airspeed, double density)
+    private static double StructuralAlpha(
+        AircraftSpec spec, double airspeed, double density, double gScale = 1.0)
     {
         double q = 0.5 * density * airspeed * airspeed;
         if (q < 1e-6 || spec.WingAreaM2 < 1e-9 || spec.LiftSlopePerRad < 1e-9)
             return double.PositiveInfinity;
 
-        return spec.GLimit * spec.MassKg * Atmosphere.Gravity
+        return spec.GLimit * gScale * spec.MassKg * Atmosphere.Gravity
              / (q * spec.WingAreaM2 * spec.LiftSlopePerRad);
     }
 

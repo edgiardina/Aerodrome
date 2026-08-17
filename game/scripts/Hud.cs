@@ -63,6 +63,7 @@ public sealed partial class Hud : Control
     /// sim tick, which at 120 Hz is invisible, so it has to be held on screen.
     /// </summary>
     private double _refusedFor;
+    private double _spentFor;
 
     public override void _Process(double delta)
     {
@@ -71,6 +72,9 @@ public sealed partial class Hud : Control
 
         if (_sim.Player.State.RollRefused) _refusedFor = 1.1;
         else _refusedFor = Math.Max(0.0, _refusedFor - delta);
+
+        if (_sim.Player.State.BreakRefused) _spentFor = 1.1;
+        else _spentFor = Math.Max(0.0, _spentFor - delta);
 
         QueueRedraw();
     }
@@ -442,6 +446,14 @@ public sealed partial class Hud : Control
             Banner(size, y + 20, "get the nose down first", Dim, 12);
             y += 40;
         }
+        else if (_spentFor > 0)
+        {
+            Banner(size, y, "SPENT", Danger, 20);
+            Banner(size, y + 20, "no break left, fly it out", Dim, 12);
+            y += 40;
+        }
+
+        if (s.IsBreaking) { Banner(size, y, "BREAKING", Good, 22); y += 26; }
 
         if (s.FuelStarvation > 0.01)
             Banner(size, y, $"FUEL STARVING  {(1 - s.FuelStarvation) * 100:F0}% POWER", Warn, 16);

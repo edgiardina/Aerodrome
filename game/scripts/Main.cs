@@ -560,7 +560,7 @@ public sealed partial class Main : Node3D
 
         _camera.Render(alpha, delta);
         foreach (var view in _views) view.Render(alpha, _camera.VisibleWidthM);
-        _bulletView.Render(alpha);
+        _bulletView.Render(alpha, _camera.VisibleWidthM);
 
         for (int i = 0; i < _effects.Count; i++)
         {

@@ -1,3 +1,4 @@
+using System;
 using Aerodrome.Core;
 using Godot;
 
@@ -32,14 +33,25 @@ public sealed partial class BulletView : MultiMeshInstance3D
     /// rounds the same way everything else is interpolated removes the floor, and
     /// the streak can be sized to look right instead of to paper over a gap.
     /// </summary>
-    public static float StreakLengthM = 4.5f;
+    public static float StreakLengthM = 6.0f;
 
     /// <summary>
     /// Thickness of the streak, in meters. A bullet is 8 mm across, so this is
-    /// already exaggerated by a factor of twenty and does not need any more: at
-    /// 1.5 m it was drawing rounds thicker than the interplane struts.
+    /// exaggerated many times over already.
     /// </summary>
-    public static float StreakWidthM = 0.18f;
+    public static float StreakWidthM = 0.35f;
+
+    /// <summary>
+    /// Floor on the streak thickness as a fraction of the visible arena width, so
+    /// a tracer never thins below about four pixels whatever the zoom.
+    ///
+    /// This is why 0.18 m looked right in a close-up and vanished in play. A world
+    /// size alone is not enough: at the normal 210 m view an object under a quarter
+    /// of a metre across lands on one and a half pixels, and a one pixel line
+    /// against a pale sky is not there. Tracers are the entire feedback channel for
+    /// aiming, so they get a minimum on-screen size the way HUD text would.
+    /// </summary>
+    public static float MinWidthScreenFraction = 0.0024f;
 
     // Saturated and hot. The sky is a pale blue-white and the haze band across the
     // middle of the screen is paler still, so a soft yellow streak simply vanished
@@ -97,13 +109,15 @@ public sealed partial class BulletView : MultiMeshInstance3D
     /// the aircraft use. Without it a round sits at its raw sim position and jumps
     /// 6.2 m between ticks however fast the renderer is running.
     /// </summary>
-    public void Render(double alpha)
+    public void Render(double alpha, double visibleWidthM)
     {
         var bullets = _field.Bullets;
         int drawn = 0;
 
         // How far back along its own track the round was at the last tick.
         float rewind = (float)((1.0 - alpha) * FlightModel.FixedDt);
+
+        float width = Math.Max(StreakWidthM, (float)visibleWidthM * MinWidthScreenFraction);
 
         for (int i = 0; i < bullets.Length; i++)
         {
@@ -123,8 +137,8 @@ public sealed partial class BulletView : MultiMeshInstance3D
             // flat horizontal dash. Building the length into the axis vector itself
             // is what actually points the streak down the flight path.
             var along = direction * StreakLengthM;
-            var across = new Vector3(-direction.Y, direction.X, 0f) * StreakWidthM;
-            var basis = new Basis(along, across, Vector3.Back * StreakWidthM);
+            var across = new Vector3(-direction.Y, direction.X, 0f) * width;
+            var basis = new Basis(along, across, Vector3.Back * width);
 
             // Interpolated to the sub-tick moment being rendered, then pulled back
             // half a streak so the head of the dash sits on the round itself.

@@ -48,6 +48,7 @@ public sealed class PilotAi
     private int _scissorsSide = 1;
     private Combatant? _lastTarget;
     private double _targetTurnRate;
+    private double _sinceBreak;
 
     public PilotAi(AiSkill skill, uint seed)
     {
@@ -234,7 +235,11 @@ public sealed class PilotAi
         // Work a jam the same way the player has to: pump the handle. Without this
         // the AI's guns stay jammed for the rest of the round, which quietly turned
         // gun heat into a one-sided punishment.
-        return command with { ClearJamPressed = WorkTheJam(s) };
+        return command with
+        {
+            ClearJamPressed = WorkTheJam(s),
+            AileronRollPressed = ShouldBreak(self, enemy),
+        };
     }
 
     /// <summary>
@@ -279,6 +284,41 @@ public sealed class PilotAi
             return new AircraftInput { ThrottleCommand = throttle, HeadingCommand = desired, RollPressed = true, FireHeld = fire };
 
         return new AircraftInput { ThrottleCommand = throttle, HeadingCommand = desired, FireHeld = fire };
+    }
+
+    /// <summary>
+    /// Throw a defensive break when somebody is about to shoot.
+    ///
+    /// Deliberately identical across the skills. Every previous attempt to scale a
+    /// non-perception behaviour with skill has ended up making the better pilot
+    /// worse, so a new capability goes in flat and stays flat unless a measurement
+    /// says otherwise.
+    ///
+    /// The conditions are the ones a pilot would actually feel: somebody close, dead
+    /// astern, with their nose on you. Not simply somebody nearby, or the AI would
+    /// roll away the whole fight and never point its guns at anything.
+    /// </summary>
+    private bool ShouldBreak(Combatant self, Combatant enemy)
+    {
+        _sinceBreak += FlightModel.FixedDt;
+
+        var s = self.State;
+        if (s.IsBreaking || s.RollRemaining > 0 || s.IsFlatTurning) return false;
+        if (s.Reserve < self.Spec.BreakCost) return false;
+
+        // Long enough that a break is a decision rather than a permanent state.
+        if (_sinceBreak < 2.2) return false;
+
+        var e = enemy.State;
+        Vec2 toMe = s.Position - e.Position;
+        double range = toMe.Length;
+        if (range > 190.0 || range < 1e-6) return false;
+
+        // Their nose on me, and close. That is a gun solution about to be taken.
+        if (Math.Abs(Angles.Delta(e.Theta, toMe.Angle)) > 0.20) return false;
+
+        _sinceBreak = 0;
+        return true;
     }
 
     /// <summary>
