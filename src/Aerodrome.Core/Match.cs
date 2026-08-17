@@ -63,8 +63,6 @@ public sealed class Match
     /// </summary>
     public void Step(double dt = FlightModel.FixedDt)
     {
-        if (Outcome != RoundOutcome.InProgress) return;
-
         for (int i = 0; i < Combatants.Count; i++)
         {
             var c = Combatants[i];
@@ -81,7 +79,14 @@ public sealed class Match
 
         Tick++;
         Elapsed += dt;
-        Evaluate();
+
+        // The world keeps turning after the round is decided. Freezing everything
+        // on the tick the player died stopped the survivors mid-air, held the
+        // slipstream on one note, and made the whole thing look like a crash rather
+        // than a defeat. Callers that want to stop simply stop calling Step.
+        //
+        // The result itself is latched: whoever won, won.
+        if (Outcome == RoundOutcome.InProgress) Evaluate();
     }
 
     private void Evaluate()

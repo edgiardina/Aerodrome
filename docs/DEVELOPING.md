@@ -127,11 +127,49 @@ before it will fire again, so it is a deliberate whack, not something you hold.
 | Classic 8-way toggle | `C` | Y | `C` |
 | Opponent skill | `1` / `2` / `3` | | |
 | How many opponents | `F6` | | `F6` |
+| How many wingmen | `F7` | | `F7` |
+| Pause | `P` or `Esc` | Start | `P` |
 | Mute | `M` | Right stick click | `M` |
-| Restart | `R` | Start | `R` |
+| Restart | `R` | | `R` |
 | Switch control scheme | `F2` | Back | `F2` |
-| Frame graph | `F3` | | `F3` |
+| Telemetry and frame graph | `F3` | | `F3` |
 | Flight model panel | `F4` | | `F4` |
+
+Start is pause, which is where anyone will look for it. Restart gave up its pad
+button and kept `R`.
+
+## The instrument board
+
+The bottom of the screen is the cockpit: airspeed, altimeter, tachometer, oil,
+fuel, a bank card, an ammunition counter and a gun thermometer. It is on by
+default, and it is meant to be read the way a pilot reads, by where the needles
+are rather than by parsing numbers.
+
+The instruments are the ones a 1917 scout carried and no others. There is no
+artificial horizon, because nobody had one. There is no compass, because the
+whole game happens on one vertical plane and a heading rose would only ever read
+east or west.
+
+The **bank card** is the one that earns its place. Inversion is a state you have
+to notice and then spend a roll to fix, and reading it off a side-on aeroplane
+mid-fight is genuinely hard. The little aeroplane on the card rolls with you, so
+upside down is unmissable.
+
+`F3` brings back the old text telemetry and the frame graph. They are off by
+default now, because two full readouts of the same six numbers on one screen is
+worse than either alone. Turn them on for tuning work.
+
+## Wingmen
+
+`F7` sets how many aircraft fly with you, from none to three. The default is one.
+
+They are deliberately NOT in a flight with you. A coordinator that assigned you a
+role would be giving orders to somebody who does not take them, and it would
+spend the fight telling its own leader to go and sit on a perch. Left to
+themselves they pick a target, one of them presses it, and the others cover.
+
+If you are shot down and a wingman is still up, the round carries on and you
+watch it. The sim no longer stops when you do.
 
 ## The enemy flight
 

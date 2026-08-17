@@ -33,6 +33,7 @@ public sealed partial class GameAudio : Node
     private bool _wasJammed;
     private bool _wasAlive = true;
     private double _gunCooldown;
+    private double _deadFor;
 
     public static GameAudio Create()
     {
@@ -84,6 +85,8 @@ public sealed partial class GameAudio : Node
     /// </summary>
     public void Update(AircraftState s, AircraftSpec spec, IReadOnlyList<HitEvent> hits, double delta)
     {
+        _deadFor = s.IsAlive ? 0.0 : _deadFor + delta;
+
         UpdateEngine(s);
         UpdateWind(s, spec);
         UpdateGuns(s, delta);
@@ -91,6 +94,34 @@ public sealed partial class GameAudio : Node
 
         if (_wasAlive && !s.IsAlive) Play(_explosion, -4f);
         _wasAlive = s.IsAlive;
+    }
+
+    /// <summary>
+    /// Silence the continuous voices while paused. They are loops, so without this
+    /// the engine keeps running over a stopped world.
+    /// </summary>
+    public void SetPaused(bool paused)
+    {
+        _engine.StreamPaused = paused;
+        _wind.StreamPaused = paused;
+        foreach (var voice in _oneShots) voice.StreamPaused = paused;
+    }
+
+    /// <summary>
+    /// How much to duck the continuous voices now the pilot is dead, in decibels.
+    ///
+    /// This is what made death sound broken. Engine and wind are loops driven by
+    /// the aircraft's state, and a dead aircraft's state never changes again, so
+    /// the slipstream held one frozen note at full volume for as long as you left
+    /// it. It read as the audio having crashed, which is a fair reading.
+    ///
+    /// Fading rather than cutting, because the sound of the air going quiet is
+    /// worth having.
+    /// </summary>
+    private float DeathFadeDb()
+    {
+        if (_deadFor <= 0.0) return 0f;
+        return (float)Mathf.Lerp(0.0, -60.0, Mathf.Clamp(_deadFor / 1.6, 0.0, 1.0));
     }
 
     private void UpdateEngine(AircraftState s)
@@ -102,7 +133,8 @@ public sealed partial class GameAudio : Node
         if (!s.IsAlive) power = 0;
 
         _engine.PitchScale = (float)Mathf.Lerp(0.55, 1.85, Mathf.Clamp(power, 0.0, 1.0));
-        _engine.VolumeDb = power < 0.02f ? -60f : (float)Mathf.Lerp(-20.0, -7.0, power);
+        _engine.VolumeDb = power < 0.02f ? -60f
+            : (float)Mathf.Lerp(-20.0, -7.0, power) + DeathFadeDb();
     }
 
     private void UpdateWind(AircraftState s, AircraftSpec spec)
@@ -110,7 +142,7 @@ public sealed partial class GameAudio : Node
         // Slipstream rises with speed and becomes a real warning at the top end,
         // which is the closest a WW1 aircraft had to an overspeed horn.
         double fast = Mathf.Clamp(s.Airspeed / 95.0, 0.0, 1.4);
-        _wind.VolumeDb = (float)Mathf.Lerp(-34.0, -11.0, fast);
+        _wind.VolumeDb = (float)Mathf.Lerp(-34.0, -11.0, fast) + DeathFadeDb();
         _wind.PitchScale = (float)Mathf.Lerp(0.75, 1.5, fast);
     }
 

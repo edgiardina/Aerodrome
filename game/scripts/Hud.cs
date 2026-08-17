@@ -27,14 +27,22 @@ public sealed partial class Hud : Control
     private PlayerInput _input = null!;
     private Func<AiSkill> _skill = null!;
     private Func<Flight?> _flight = null!;
+    private Func<bool> _paused = null!;
     private Font _font = null!;
 
     private readonly float[] _frameMs = new float[FrameSamples];
     private int _frameIndex;
-    public bool ShowDebug { get; set; } = true;
+
+    /// <summary>
+    /// The text telemetry and the frame graph. Off by default now that the
+    /// instrument board carries the same readings, because two full readouts of the
+    /// same six numbers on one screen is worse than either alone. F3 brings it back,
+    /// and tuning work wants it back.
+    /// </summary>
+    public bool ShowDebug { get; set; }
 
     public static Hud Create(SimRunner sim, ChaseCamera camera, PlayerInput input,
-                             Func<AiSkill> skill, Func<Flight?> flight) => new()
+                             Func<AiSkill> skill, Func<Flight?> flight, Func<bool> paused) => new()
     {
         Name = "Hud",
         _sim = sim,
@@ -42,6 +50,7 @@ public sealed partial class Hud : Control
         _input = input,
         _skill = skill,
         _flight = flight,
+        _paused = paused,
         MouseFilter = MouseFilterEnum.Ignore,
         AnchorRight = 1,
         AnchorBottom = 1,
@@ -102,11 +111,19 @@ public sealed partial class Hud : Control
 
         if (ShowCredits) { DrawCredits(size); return; }
 
-        DrawTelemetry();
+        if (ShowDebug) DrawTelemetry();
         DrawReticle(size);
         DrawOffscreenMarkers(size);
         if (ShowDebug) DrawFrameGraph(size);
         DrawWarnings(size);
+        if (_paused()) DrawPaused(size);
+    }
+
+    private void DrawPaused(Vector2 size)
+    {
+        DrawRect(new Rect2(Vector2.Zero, size), new Color(0.02f, 0.03f, 0.04f, 0.45f), true);
+        Banner(size, size.Y * 0.44f, "PAUSED", Ink, 44);
+        Banner(size, size.Y * 0.44f + 34, "P or Start to fly on", Dim, 14);
     }
 
     // --- Telemetry ----------------------------------------------------------
@@ -334,11 +351,20 @@ public sealed partial class Hud : Control
 
             Banner(size, y + 62, $"rounds fired {_sim.Player.Spec.AmmoRounds - s.Ammo}   " +
                                  $"hits {_sim.Player.Combatant.HitsScored}", Dim, 13);
-            Banner(size, y + 84, "R to fly again    1 / 2 / 3 opponent skill    F6 how many", Dim, 13);
+            Banner(size, y + 84, "R to fly again    1 / 2 / 3 skill    F6 enemies    F7 wingmen", Dim, 13);
             return;
         }
 
-        if (!s.IsAlive) return;
+        if (!s.IsAlive)
+        {
+            // Dead, but the round is not over: your side still has somebody up.
+            // The sim keeps running now, so this is worth watching rather than a
+            // frozen screen waiting for a keypress.
+            Banner(size, y, "YOU ARE DOWN", Danger, 34);
+            Banner(size, y + 34, "your flight fights on", Dim, 14);
+            Banner(size, y + 56, "R to fly again", Dim, 13);
+            return;
+        }
 
         // Downing one of them buys a few seconds while the rest go high and regroup.
         // Say so: it is the only window in a flight engagement where you get to

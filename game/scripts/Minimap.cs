@@ -26,6 +26,7 @@ public sealed partial class Minimap : Control
     private static readonly Color ViewportBox = new(0.95f, 0.93f, 0.75f, 0.95f);
     private static readonly Color PlayerMark = new(0.55f, 0.82f, 1.0f);
     private static readonly Color EnemyMark = new(0.95f, 0.35f, 0.28f);
+    private static readonly Color WingmanMark = new(0.34f, 0.86f, 0.68f);
 
     private SimRunner _sim = null!;
     private ChaseCamera _camera = null!;
@@ -96,10 +97,14 @@ public sealed partial class Minimap : Control
 
     private void DrawContact(Rect2 rect, SimAircraft a)
     {
-        bool isPlayer = a.Team == Team.Player;
-        bool pressing = !isPlayer && ReferenceEquals(_flight()?.Engaged, a.Combatant);
+        bool isPlayer = ReferenceEquals(a, _sim.Player);
+        bool friendly = a.Team == Team.Player;
+        bool pressing = !friendly && ReferenceEquals(_flight()?.Engaged, a.Combatant);
 
-        Color color = isPlayer ? PlayerMark : pressing ? EnemyMark : new Color(EnemyMark, 0.55f);
+        Color color = isPlayer ? PlayerMark
+                    : friendly ? WingmanMark
+                    : pressing ? EnemyMark : new Color(EnemyMark, 0.55f);
+
         Vector2 p = ToMap(rect, new Vector2((float)a.State.Position.X, (float)a.State.Position.Y));
 
         float radius = isPlayer ? 3.4f : 2.8f;

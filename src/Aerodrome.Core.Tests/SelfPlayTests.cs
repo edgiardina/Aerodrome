@@ -150,11 +150,26 @@ public class SelfPlayTests(ITestOutputHelper output)
         // rediscovered from scratch.
         //
         // The response to reaction delay is not monotonic. A Rookie at 0.55 s beats
-        // a Veteran at 0.26 s, but an Ace at 0.11 s beats the Rookie. Working
-        // hypothesis: the AI dead-reckons its stale picture forward by its own
-        // reaction time, so a long delay extrapolates a long way ahead of a turning
-        // target, and against some geometries that accidental over-lead is a better
-        // firing solution than a small honest one.
+        // a Veteran at 0.26 s, but an Ace at 0.11 s beats the Rookie.
+        //
+        // The old working hypothesis here was that dead-reckoning a stale picture
+        // forward by the pilot's own reaction time hands a slow pilot an accidental
+        // over-lead. That is now CONFIRMED, and it was worth more than anyone
+        // thought. Making the lead deliberate instead of accidental, by flying at a
+        // point ahead on the target's estimated turn, was the single largest change
+        // ever measured on this ladder: an Ace that had been losing to a Rookie at
+        // 23 percent went to 58, and Ace over Veteran went from 37 to 57.
+        //
+        // What is left is the residue of the same effect. The lead a pilot gets by
+        // accident still scales with its reaction delay, and it does not cancel the
+        // deliberate lead exactly, so a Rookie is still over-leading in a way that
+        // happens to suit a knife fight. Fixing the rest means separating the two
+        // cleanly: reaction delay should only make the target track WRONG, never
+        // make it further ahead. That is the next thing to try, and it is a change
+        // to how the track is estimated, not another pass at the skill numbers.
+        //
+        // Do not tune AiSkill to chase this. Six attempts at that failed before the
+        // real mechanism was found, and the mechanism was never in those numbers.
         //
         // Every parameter that was NOT pure perception had to be flattened to get
         // this far. Fire cone, fire range, inversion tolerance, throttle discipline

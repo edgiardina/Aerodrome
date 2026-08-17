@@ -10,7 +10,7 @@ ground war, no bombing runs. You start in the air.
 
 Milestones 0 and 1 are done. Milestone 2 is playable.
 
-- `Aerodrome.Core` flies and fights. 88 tests pass in about 25 seconds.
+- `Aerodrome.Core` flies and fights. 90 tests pass in about 20 seconds.
 - All three reversals work: the Immelmann, the Split-S, and the flat turn.
   Stall, spin, and spin recovery work.
 - Guns, ballistics, jams, and component damage work.
@@ -18,12 +18,31 @@ Milestones 0 and 1 are done. Milestone 2 is playable.
   player uses.
 - Two real aircraft: the Sopwith Camel and the Fokker Dr.I, with genuinely
   different strengths.
-- Up to four opponents, flying as a coordinated flight rather than a crowd.
+- Up to four opponents and three wingmen, each side flying as a coordinated
+  flight rather than a crowd.
+- A period instrument board: airspeed, altimeter, tachometer, oil, fuel, bank.
+- An aerodrome, a ruined village, a front line and observation balloons, all
+  built in code to match the art direction.
 - A live flight model panel on `F4`, so the feel can be dialled in while flying.
-- Procedural audio with hit markers. `M` mutes.
-- The Godot layer runs at over 1300 fps on an RTX 3080 Ti, at 0.75 ms a frame.
+- Procedural audio with hit markers. `M` mutes, `P` pauses.
+- The Godot layer runs at over 900 fps on an RTX 3080 Ti, at about 1 ms a frame.
 
 Still to do for M2: a proper round UI and menus.
+
+## The elevator is not the turn rate
+
+The one modelling idea worth knowing before reading `FlightModel`.
+
+How fast the flight path bends is set by lift and by the G limit. How fast the
+NOSE swings is a different and much larger number, because rotating the airframe
+is what builds the angle of attack that makes the lift in the first place.
+
+Limiting the nose to the turn rate makes the pilot wait for the flight path
+before the aeroplane answers, and it feels like steering a barge. `ElevatorRateRad`
+separates them. The nose runs quickly until it reaches the angle of attack the
+wing and the airframe allow, and the turn is governed by lift from there.
+
+The envelope is identical either way. Only the time to reach it changes.
 
 ## Fighting more than one
 

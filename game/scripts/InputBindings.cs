@@ -32,7 +32,9 @@ public static class InputBindings
     public const string DebugOverlay = "debug_overlay";
     public const string Restart = "restart";
     public const string CycleEnemies = "cycle_enemies";
+    public const string CycleWingmen = "cycle_wingmen";
     public const string Mute = "mute";
+    public const string Pause = "pause";
     public const string TuningPanel = "tuning_panel";
     public const string TuningSave = "tuning_save";
     public const string TuningLoad = "tuning_load";
@@ -93,7 +95,11 @@ public static class InputBindings
         Pad(CycleScheme, JoyButton.Back);
         Action(DebugOverlay, Key.F3);
         Action(Restart, Key.R);
-        Pad(Restart, JoyButton.Start);
+
+        // Start is pause, which is where every player will look for it. Restart
+        // keeps the R key and gives up its pad button.
+        Action(Pause, Key.P, Key.Escape);
+        Pad(Pause, JoyButton.Start);
 
         // --- Tuning and match setup ------------------------------------------
         // The tuning panel is keyboard and mouse only on purpose. Every pad button
@@ -104,6 +110,7 @@ public static class InputBindings
         Action(TuningLoad, Key.F10);
         Action(TuningReset, Key.Home);
         Action(CycleEnemies, Key.F6);
+        Action(CycleWingmen, Key.F7);
 
         // Mute. Needs to be one key, always available, no menu in the way. An
         // engine loop you cannot silence makes the game unusable next to anything

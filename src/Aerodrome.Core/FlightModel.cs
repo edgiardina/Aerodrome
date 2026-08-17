@@ -342,9 +342,56 @@ public static class FlightModel
         bool isPull = Math.Sign(error) == s.CanopySign;
         if (!isPull) maxRate *= spec.PushFactor;
 
+        maxRate = Math.Max(maxRate, ElevatorRate(s, spec, airspeed, density, isPull, authority, stickScale));
+
         double step = Angles.Clamp(error, -maxRate * dt, maxRate * dt);
         s.Theta = Angles.Wrap0To2Pi(s.Theta + step);
         s.SlewRateRad = step / dt;
+    }
+
+    /// <summary>
+    /// How fast the nose may swing right now, over and above the rate at which the
+    /// flight path can bend.
+    ///
+    /// The nose is allowed to LEAD the flight path, because that is what an
+    /// elevator does. The lead is the angle of attack, so the only question is how
+    /// much angle of attack the aircraft is still allowed, and there are two limits
+    /// on it:
+    ///
+    ///   The wing. Past the stall angle there is no more lift to be had, so hauling
+    ///   the nose further only stalls you.
+    ///
+    ///   The airframe. At speed the structural G limit is reached well before the
+    ///   stall angle, and if the elevator could ignore that it would out-turn the G
+    ///   limit and corner speed would stop meaning anything. Corner speed is the
+    ///   number the whole dogfight orbits around, so this limit is not optional.
+    ///
+    /// Once the nose is against whichever limit binds, this returns zero and the
+    /// turn goes back to being governed by lift, exactly as before. The envelope is
+    /// identical. Only the time taken to reach it changes.
+    /// </summary>
+    private static double ElevatorRate(
+        AircraftState s, AircraftSpec spec, double airspeed, double density,
+        bool isPull, double authority, double stickScale)
+    {
+        double limit = spec.StallAlphaRad * spec.ElevatorLeadFactor;
+
+        double q = 0.5 * density * airspeed * airspeed;
+        if (q > 1e-6 && spec.WingAreaM2 > 1e-9 && spec.LiftSlopePerRad > 1e-9)
+        {
+            double alphaAtGLimit = spec.GLimit * spec.MassKg * Atmosphere.Gravity
+                                 / (q * spec.WingAreaM2 * spec.LiftSlopePerRad);
+            limit = Math.Min(limit, alphaAtGLimit);
+        }
+
+        // Alpha is signed so that positive is toward the canopy, which is a pull.
+        // A pull may keep going while alpha is under the limit. A push may keep
+        // going while it is above the negative of it.
+        bool headroom = isPull ? s.Alpha < limit : s.Alpha > -limit;
+        if (!headroom) return 0.0;
+
+        double rate = spec.ElevatorRateRad * authority * stickScale;
+        return isPull ? rate : rate * spec.PushFactor;
     }
 
     /// <summary>

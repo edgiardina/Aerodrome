@@ -67,6 +67,31 @@ public sealed record AircraftSpec
     /// <summary>Hard cap on nose slew rate, rad/s. Stops any numerical blow-up.</summary>
     public double MaxSlewRateRad { get; init; } = 3.0;
 
+    /// <summary>
+    /// How fast the elevator can rotate the airframe about its own centre of
+    /// gravity, rad/s. This is NOT the turn rate.
+    ///
+    /// The two are different things, and conflating them is what made pitch feel
+    /// like steering a barge. A turn rate is how fast the FLIGHT PATH bends, and
+    /// that is limited by the lift the wing can make. Rotating the nose is what
+    /// BUILDS the angle of attack that makes that lift in the first place, and it
+    /// happens far faster. A real pilot yanks the stick, the nose comes up almost
+    /// at once, and the aeroplane then arcs round after it.
+    ///
+    /// The old model rate-limited the nose itself by the turn rate, so the pilot
+    /// had to wait for the flight path before the nose would answer. Sustained
+    /// turn performance is unchanged by this: the nose still stops at the angle of
+    /// attack the wing and the airframe allow. It only gets there quickly.
+    /// </summary>
+    public double ElevatorRateRad { get; init; } = 3.2;
+
+    /// <summary>
+    /// How far past the stall angle the nose may lead the flight path, as a
+    /// multiple of the stall angle. At 1.0 the nose stops exactly where the wing
+    /// runs out of lift, which keeps the whole corner-speed envelope intact.
+    /// </summary>
+    public double ElevatorLeadFactor { get; init; } = 1.0;
+
     // --- Directional stability ---
     /// <summary>
     /// How hard the tail pulls the nose back toward the airflow, per radian of
@@ -244,6 +269,13 @@ public sealed record AircraftSpec
         TurnRateScale = 1.0,
         MaxSlewRateRad = 4.5,
 
+        // The nose answers now. Sustained turn rate is untouched, because the nose
+        // still stops dead at the angle of attack the wing and the airframe allow.
+        // What goes away is the wait: the aircraft used to take most of a second to
+        // work its way up to a hard pull, which read as a heavy, unwilling elevator.
+        ElevatorRateRad = 5.5,
+        ElevatorLeadFactor = 1.0,
+
         // A push at a third of a pull made "nose down" feel dead. Inversion still
         // has to cost something, but 40 percent is a penalty and 67 percent was a
         // punishment.
@@ -284,6 +316,8 @@ public sealed record AircraftSpec
         MaxSlewRateRad = 4.5,
         PushFactor = 0.60,
         WeathercockGain = 2.0,
+        ElevatorRateRad = 5.8,   // short fuselage, big elevator, famously twitchy
+        ElevatorLeadFactor = 1.0,
 
         // And pays for it in speed. Three wings, six struts and all that wire.
         Cd0 = 0.031,

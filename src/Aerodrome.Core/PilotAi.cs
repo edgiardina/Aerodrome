@@ -47,6 +47,7 @@ public sealed class PilotAi
     private double _scissorsTimer;
     private int _scissorsSide = 1;
     private Combatant? _lastTarget;
+    private double _targetTurnRate;
 
     public PilotAi(AiSkill skill, uint seed)
     {
@@ -83,7 +84,7 @@ public sealed class PilotAi
         }
 
         RecordTarget(enemy.State);
-        GetDelayedTarget(out Vec2 targetPos, out Vec2 targetVel);
+        GetDelayedTarget(out Vec2 targetPos, out Vec2 targetVel, out _targetTurnRate);
 
         _sinceDecision += dt;
         _behaviourHeld += dt;
@@ -199,7 +200,7 @@ public sealed class PilotAi
 
             case Behavior.BoomAndZoom:
                 // Dive on them, take the shot, and keep the speed for the climb out.
-                desired = AimHeading(self, targetPos, targetVel);
+                desired = Pursue(self, targetPos, targetVel);
                 break;
 
             case Behavior.Merge:
@@ -209,7 +210,7 @@ public sealed class PilotAi
                 break;
 
             default:
-                desired = AimHeading(self, targetPos, targetVel);
+                desired = Pursue(self, targetPos, targetVel);
                 preferFlatTurn = s.Position.Y < 260;   // no room to loop down here
                 break;
         }
@@ -354,12 +355,62 @@ public sealed class PilotAi
     /// This was tried both ways. Taking the error out of the steering is the
     /// tidier idea, and it measured worse: see the note on AiSkill.FireConeRad.
     /// </summary>
+    /// <summary>
+    /// How to fly a pursuit, as opposed to where to point the guns.
+    ///
+    /// Commanding the firing solution directly looks correct and plays badly. The
+    /// nose arrives, the heading error goes to zero, and the pilot stops pulling.
+    /// The result is a wide, gentle, fast arc, and at the ranges these fights
+    /// happen at the aircraft turning hardest wins the position no matter who is
+    /// the better shot.
+    ///
+    /// It punished skill precisely because skill is what makes the command small.
+    /// Once the elevator got quick, a Rookie's sloppy aim kept it hauling the
+    /// aircraft round while an Ace flew a tidy curve into its guns, and the Ace
+    /// lost two rounds in three to a pilot that could not shoot.
+    ///
+    /// So: haul it round at whatever the airframe will give until the nose is
+    /// nearly on, and only then track the solution precisely. That is what a pilot
+    /// does, and it puts the advantage back with the one who can hold the tracking
+    /// solution once they get there.
+    /// </summary>
+    private double Pursue(Combatant self, Vec2 targetPos, Vec2 targetVel)
+    {
+        var s = self.State;
+
+        // Where the guns have to point right now.
+        double aim = AimHeading(self, targetPos, targetVel);
+
+        // Close and nearly on: track the firing solution and take the shot.
+        double range = (targetPos - s.Position).Length;
+        double aimError = Angles.Delta(s.Theta, aim);
+        if (range < 140.0 && Math.Abs(aimError) < 0.22) return aim;
+
+        // Otherwise fly LEAD pursuit: point at where the target is going to be,
+        // not at where it is. Chasing its current position is pure pursuit, which
+        // puts you permanently on the outside of its turn and is how a good shot
+        // loses to a bad one.
+        //
+        // How far ahead to look scales with range: far out there is time to cut a
+        // big corner, and up close a big lead just swings the nose off the target.
+        double lookAhead = Angles.Clamp(range / 70.0, 0.25, 2.5);
+        Vec2 leadPoint = Advance(targetPos, targetVel, _targetTurnRate, lookAhead);
+
+        double lead = (leadPoint - s.Position).Angle;
+        double error = Angles.Delta(s.Theta, lead);
+
+        // Outside the tracking window, use everything the airframe will give.
+        // Commanding only as far as the solution means easing off the instant the
+        // nose arrives, and the aircraft turning hardest owns the fight.
+        return Math.Abs(error) <= 0.22 ? lead : s.Theta + Math.Sign(error) * 1.2;
+    }
+
     private double AimHeading(Combatant self, Vec2 targetPos, Vec2 targetVel)
     {
         var s = self.State;
         if (Guns.Intercept(s.Position, s.Velocity, self.Spec.MuzzleVelocity,
                            targetPos, targetVel, out double aim, out _))
-            return aim + _aimError;
+            return aim;
 
         return (targetPos - s.Position).Angle;
     }
@@ -487,14 +538,66 @@ public sealed class PilotAi
     /// the less of your maneuver they have yet to notice.
     /// </summary>
     private void GetDelayedTarget(out Vec2 position, out Vec2 velocity)
+        => GetDelayedTarget(out position, out velocity, out _);
+
+    /// <summary>
+    /// Also reports how fast the target is turning, estimated from the same stale
+    /// picture. A pilot who has not noticed you are turning yet cannot lead you.
+    ///
+    /// The forward reckoning follows the CURVE rather than a straight line. That
+    /// matters more than it looks. Reckoning straight ahead throws the predicted
+    /// position wide of any turning target, and wide is, by accident, roughly where
+    /// lead pursuit wants you to point. So the pilot with the worst data was flying
+    /// the better geometry, and the one with the best data was flying pure pursuit
+    /// straight into the loser's position.
+    /// </summary>
+    private void GetDelayedTarget(out Vec2 position, out Vec2 velocity, out double turnRate)
     {
         int back = (int)Math.Round(Skill.ReactionDelayS * FlightModel.TickRate);
         back = Math.Min(back, _historyFilled - 1);
         back = Math.Max(back, 0);
 
         int index = ((_historyHead - 1 - back) % HistoryTicks + HistoryTicks) % HistoryTicks;
-        velocity = _targetVel[index];
-        position = _targetPos[index] + velocity * (back / FlightModel.TickRate);
+        var snapshotPos = _targetPos[index];
+        var snapshotVel = _targetVel[index];
+
+        turnRate = EstimateTurnRate(index, snapshotVel, back);
+
+        double seconds = back / FlightModel.TickRate;
+        position = Advance(snapshotPos, snapshotVel, turnRate, seconds);
+        velocity = snapshotVel.Rotated(turnRate * seconds);
+    }
+
+    /// <summary>Turn rate from two samples of the stale track, rad/s.</summary>
+    private double EstimateTurnRate(int index, Vec2 velocityNow, int back)
+    {
+        const int Span = 12;   // 0.1 s, long enough not to be reading integration noise
+        if (_historyFilled <= back + Span + 1) return 0.0;
+
+        int older = ((index - Span) % HistoryTicks + HistoryTicks) % HistoryTicks;
+        var was = _targetVel[older];
+        if (was.LengthSquared < 1e-9 || velocityNow.LengthSquared < 1e-9) return 0.0;
+
+        double swept = Angles.Delta(was.Angle, velocityNow.Angle);
+        return swept / (Span / FlightModel.TickRate);
+    }
+
+    /// <summary>
+    /// Move a point along a constant-rate turn. Straight line when it is not
+    /// turning, an arc about the turn centre when it is.
+    /// </summary>
+    private static Vec2 Advance(Vec2 position, Vec2 velocity, double turnRate, double seconds)
+    {
+        if (seconds <= 0.0) return position;
+
+        double speed = velocity.Length;
+        if (speed < 1e-6) return position;
+        if (Math.Abs(turnRate) < 1e-3) return position + velocity * seconds;
+
+        // Signed radius, so the centre lands on the correct side of the track.
+        double radius = speed / turnRate;
+        Vec2 centre = position + velocity.Normalized.PerpCcw * radius;
+        return centre + (position - centre).Rotated(turnRate * seconds);
     }
 
     /// <summary>A slow random walk. Per-tick noise averages out and looks twitchy.</summary>

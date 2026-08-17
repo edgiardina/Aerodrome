@@ -264,3 +264,78 @@ makes them cheap to answer.
    AAOWITS yet.
 2. `WeathercockGain` of 2.0 is still a guess.
 3. The arcade top speed is still about 260 km/h against a real 185 km/h.
+
+---
+
+## The elevator, and why pitch felt like a barge
+
+Ed: "the left right feels good but the elevator pitching is too realistic".
+
+He was right, and the cause was a modelling mistake rather than a number that
+needed turning up.
+
+`MaxSlewRate` returns the rate at which the FLIGHT PATH can bend. It comes
+straight out of the lift the wing can make and the G the airframe can take, and
+it is correct for what it is. The mistake was using it to rate-limit the NOSE.
+
+Those are different things. Rotating the nose is what BUILDS the angle of attack
+that makes the lift that bends the flight path. It happens far faster than the
+turn, and it has to, because it comes first. A pilot pulls the stick, the nose
+comes up almost at once, and the aeroplane arcs round after it.
+
+Limiting the nose to the turn rate inverted that. The pilot had to wait for the
+flight path before the nose would answer, so a hard pull took most of a second to
+arrive, which is exactly the heavy unwilling elevator Ed was describing.
+
+### The fix
+
+`ElevatorRateRad` is how fast the elevator can rotate the airframe about its own
+centre of gravity. The Camel gets 5.5 rad/s, the Dr.I 5.8 because it was famously
+twitchy in pitch. The nose runs at that rate until it hits the angle of attack
+limit, and then the turn is governed by lift exactly as before.
+
+The angle of attack limit is the smaller of two things:
+
+- **The wing.** Past the stall angle there is no more lift to be had.
+- **The airframe.** At speed the structural G limit binds well before the stall
+  angle does. This one is not optional: without it the elevator would out-turn
+  the G limit and corner speed would stop meaning anything, and corner speed is
+  the number the whole dogfight orbits around.
+
+**The envelope is unchanged.** Same stall speed, same corner speed, same peak
+turn rate, same loop time. Only the time taken to get there is different. That
+matters, because the sustained turn is the part Ed said already felt good.
+
+Both numbers are on the F4 panel.
+
+### What it broke, and what that turned out to mean
+
+The skill ladder inverted immediately: the Ace went from beating everyone to
+losing to a Rookie two rounds in three.
+
+Two guesses were wrong before the measurement was right. It was not oscillation
+(the Ace flew the SMOOTHEST of the three) and it was not the pursuit command
+easing off on arrival (changing that moved nothing). Measuring how each skill
+actually flew, rather than whether it won, was what found it: the Ace flew fast
+at low angle of attack, and got shot to pieces at close range.
+
+The Ace was flying PURE pursuit. It tracked the target's current position
+accurately, arrived, and flew a gentle arc into the other aeroplane's guns. The
+Rookie's 0.55 s of stale data, dead-reckoned forward, threw its aim point wide of
+a turning target, and wide is roughly where lead pursuit wants you. The worst
+data was flying the better geometry.
+
+That confirmed a hypothesis written down in `SelfPlayTests` a while ago and never
+tested. Making the lead deliberate instead of accidental, by estimating the
+target's turn rate and flying at a point ahead on its arc, is the largest single
+change ever measured on this ladder:
+
+| | before | after |
+|---|---|---|
+| Ace over Rookie | 23% | 58% |
+| Ace over Veteran | 37% | 57% |
+
+A Veteran still does not beat a Rookie, which is the residue of the same effect
+and is recorded in the test. The lesson worth keeping: measure what the AI is
+DOING, not whether it is winning. Win rate says a pilot is worse. Angle of
+attack, airspeed and cause of death say why.

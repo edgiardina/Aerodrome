@@ -98,6 +98,23 @@ $uid = "70ad9a87976e4d4eaeedaa4cd78dc94b"
 | Asset | Author | Source | License | Verified | Changes |
 |---|---|---|---|---|---|
 
+## Scenery
+
+Nothing third-party. Every building, trench, tree and balloon in `Scenery.cs` is
+built in code, so this section of the ledger stays empty on purpose.
+
+That was a decision, not an oversight. The free low-poly prop libraries are all
+flat-shaded cartoon geometry, and this game has a photoscanned Sopwith Camel in
+the foreground. A cartoon tent behind it makes BOTH look wrong: the aeroplane
+starts to read as out of place and the tent reads as a placeholder.
+
+It also suits the camera. This is a side elevation and the scenery is two
+kilometres away, where a building is a silhouette and a colour. Getting the
+silhouette right is nearly all of the work.
+
+**Period note.** A Quonset hut is American and dates from 1941. The 1916 British
+original is the NISSEN hut, and that is what these are.
+
 ## Model preparation
 
 `tools/prepare-model.ps1` does all of it in headless Blender. You do not have to

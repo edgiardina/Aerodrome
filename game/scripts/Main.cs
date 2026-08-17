@@ -17,12 +17,14 @@ public sealed partial class Main : Node3D
 {
     private static readonly Color PlayerColor = new(0.42f, 0.66f, 0.92f);
     private static readonly Color EnemyColor = new(0.86f, 0.30f, 0.24f);
+    private static readonly Color WingmanColor = new(0.30f, 0.78f, 0.62f);
 
     private SimRunner _sim = null!;
     private PlayerInput _input = null!;
     private ChaseCamera _camera = null!;
     private Hud _hud = null!;
     private Minimap _minimap = null!;
+    private CockpitPanel _cockpit = null!;
     private readonly List<AircraftView> _views = new();
     private readonly List<DamageEffects> _effects = new();
     private readonly HashSet<SimAircraft> _wrecked = new();
@@ -34,15 +36,25 @@ public sealed partial class Main : Node3D
     private CanvasLayer _ui = null!;
     private TuningPanel _tuning = null!;
 
-    // One pilot per enemy aircraft, plus the coordinator that decides which of them
-    // presses the attack. See Flight: three opponents all attacking at once is a
-    // firing squad, not a dogfight.
-    private readonly List<PilotAi> _pilots = new();
-    private Flight _enemyFlight = null!;
+    // One pilot per AI aircraft, indexed to match _sim.Aircraft exactly. The player
+    // sits at index 0 and has no pilot, so that slot is null. Indexing this list any
+    // other way breaks the moment friendly aircraft exist.
+    private readonly List<PilotAi?> _pilots = new();
 
-    /// <summary>How many aircraft the enemy puts up. F2 cycles it.</summary>
+    // Two coordinators. See Flight: aircraft all attacking at once is a firing
+    // squad, not a dogfight, and that is as true of your side as of theirs.
+    private Flight _enemyFlight = null!;
+    private Flight _friendlyFlight = null!;
+
+    /// <summary>How many aircraft the enemy puts up. F6 cycles it.</summary>
     private int _enemyCount = 2;
     private const int MaxEnemies = 4;
+
+    /// <summary>How many wingmen fly with you. F7 cycles it.</summary>
+    private int _wingmanCount = 1;
+    private const int MaxWingmen = 3;
+
+    private bool _paused;
 
     // --- Automated capture, for checking the build without a human at the keyboard.
     // Run: godot --path game -- --shot <dir>
@@ -257,8 +269,33 @@ public sealed partial class Main : Node3D
         var spec = AircraftSpec.CamelArcade;
         _sim = new SimRunner(arena, seed);
 
+        _pilots.Clear();
+        _enemyFlight = new Flight(team: 1);
+        _friendlyFlight = new Flight(team: 0);
+
         _sim.Add(SimAircraft.Create(spec, team: 0, "player",
             AircraftState.Spawn(spec, new Vec2(700, 300), 0.0, 62.0)));
+        _pilots.Add(null);   // index 0 is you
+
+        // Wingmen. They are NOT in the flight with you, on purpose: a coordinator
+        // that assigned you a role would be giving orders to somebody who does not
+        // take them, and it would spend most of the fight telling its own leader to
+        // go and sit on a perch. Left to themselves they pick a target, one of them
+        // presses it, and the rest cover. Which is what a wingman looks like from
+        // the cockpit anyway.
+        int wingmen = _autoPilot is not null ? 0 : _wingmanCount;
+
+        for (int i = 0; i < wingmen; i++)
+        {
+            var position = new Vec2(700 - (i + 1) * 120, Math.Max(140, 300 - (i + 1) * 45));
+
+            var friend = SimAircraft.Create(spec, team: 0, $"blue {i + 2}",
+                AircraftState.Spawn(spec, position, 0.0, 60.0));
+
+            _sim.Add(friend);
+            _friendlyFlight.Add(friend.Combatant);
+            _pilots.Add(new PilotAi(_skill, seed + 401u + (uint)i * 53u));
+        }
 
         // The enemy flies triplanes. Two identical aircraft can never disengage
         // from each other, so every fight is a turn fight to the death. The Dr.I
@@ -269,9 +306,6 @@ public sealed partial class Main : Node3D
 
         // The capture routine is scripted against one opponent for most of its run.
         int enemies = _autoPilot is not null ? _captureEnemies : _enemyCount;
-
-        _pilots.Clear();
-        _enemyFlight = new Flight(team: 1);
 
         for (int i = 0; i < enemies; i++)
         {
@@ -292,7 +326,12 @@ public sealed partial class Main : Node3D
 
         foreach (var aircraft in _sim.Aircraft)
         {
-            var view = AircraftView.Create(aircraft, aircraft.Team == Team.Player ? PlayerColor : EnemyColor);
+            // Your wingmen wear the squadron colour a shade off yours, so at a
+            // glance you can still tell which blue aeroplane is the one you fly.
+            var colour = aircraft.Team != Team.Player ? EnemyColor
+                       : aircraft == _sim.Player ? PlayerColor : WingmanColor;
+
+            var view = AircraftView.Create(aircraft, colour);
             AddChild(view);
             _views.Add(view);
 
@@ -309,15 +348,25 @@ public sealed partial class Main : Node3D
 
         _autoPilot?.SetEnemy(_sim.Aircraft[1]);
 
-        if (_camera is not null) { _camera.QueueFree(); _hud.QueueFree(); _minimap.QueueFree(); }
+        if (_camera is not null)
+        {
+            _camera.QueueFree();
+            _hud.QueueFree();
+            _minimap.QueueFree();
+            _cockpit.QueueFree();
+        }
 
         _camera = ChaseCamera.Create(_sim, arena);
         AddChild(_camera);
 
         // The layer itself is built once in BuildWorld. Adding a fresh one every
         // round left a dead CanvasLayer behind on each restart.
-        _hud = Hud.Create(_sim, _camera, _input, () => _skill, () => _enemyFlight);
+        _hud = Hud.Create(_sim, _camera, _input, () => _skill, () => _enemyFlight, () => _paused);
         _minimap = Minimap.Create(_sim, _camera, () => _enemyFlight);
+        _cockpit = CockpitPanel.Create(_sim);
+
+        // The board goes in first so the HUD's banners and markers draw over it.
+        _ui.AddChild(_cockpit);
         _ui.AddChild(_hud);
         _ui.AddChild(_minimap);
 
@@ -328,20 +377,28 @@ public sealed partial class Main : Node3D
 
     public override void _PhysicsProcess(double delta)
     {
+        if (_paused) return;
+
         _sim.Player.Input = !_sim.Player.State.IsAlive ? AircraftInput.Neutral
             : _autoPilot is not null ? _autoPilot.Fly(_sim.Player, _sim.Arena)
             : _input.Poll();
 
-        // The flight decides who goes in BEFORE anybody flies, so every pilot this
+        // Both flights decide who goes in BEFORE anybody flies, so every pilot this
         // tick is working from the same picture.
         _enemyFlight.Update(_sim.Match, _sim.Arena, delta);
+        _friendlyFlight.Update(_sim.Match, _sim.Arena, delta);
 
         for (int i = 1; i < _sim.Aircraft.Count; i++)
         {
-            var enemy = _sim.Aircraft[i];
-            enemy.Input = _pilots[i - 1].Fly(
-                enemy.Combatant, _enemyFlight.Target, _sim.Arena, delta,
-                _enemyFlight.OrdersFor(enemy.Combatant));
+            var aircraft = _sim.Aircraft[i];
+            var pilot = _pilots[i];
+            if (pilot is null) continue;
+
+            var flight = aircraft.Team == Team.Player ? _friendlyFlight : _enemyFlight;
+
+            aircraft.Input = pilot.Fly(
+                aircraft.Combatant, flight.Target, _sim.Arena, delta,
+                flight.OrdersFor(aircraft.Combatant));
         }
 
         _sim.Step();
@@ -370,6 +427,7 @@ public sealed partial class Main : Node3D
         if (Input.IsActionJustPressed(InputBindings.DebugOverlay)) _hud.ShowDebug = !_hud.ShowDebug;
         if (Input.IsActionJustPressed(InputBindings.TuningPanel)) _tuning.Toggle();
         if (Input.IsActionJustPressed(InputBindings.Mute)) SetMuted(!IsMuted());
+        if (Input.IsActionJustPressed(InputBindings.Pause)) SetPaused(!_paused);
         if (Input.IsActionJustPressed(InputBindings.Restart)) { StartMatch(); return; }
 
         if (_autoPilot is null)
@@ -454,7 +512,28 @@ public sealed partial class Main : Node3D
             _enemyCount = _enemyCount % MaxEnemies + 1;
             GD.Print($"[aerodrome] enemy flight of {_enemyCount}, starting a new round");
             StartMatch();
+            return;
         }
+
+        if (Input.IsActionJustPressed(InputBindings.CycleWingmen))
+        {
+            _wingmanCount = (_wingmanCount + 1) % (MaxWingmen + 1);
+            GD.Print($"[aerodrome] {_wingmanCount} wingmen, starting a new round");
+            StartMatch();
+        }
+    }
+
+    /// <summary>
+    /// Stop the sim without stopping the renderer.
+    ///
+    /// Deliberately not SceneTree.Paused. That would freeze the wreckage, the
+    /// smoke and the HUD along with everything else, and the HUD is the thing that
+    /// has to keep drawing to tell you that you are paused.
+    /// </summary>
+    private void SetPaused(bool paused)
+    {
+        _paused = paused;
+        _audio.SetPaused(paused);
     }
 
     // --- World --------------------------------------------------------------
@@ -582,6 +661,10 @@ public sealed partial class Main : Node3D
                       minY: 520f, maxY: 1200f, scale: 1.0f, alpha: 0.92f);
         AddCloudLayer(root, rng, width, z: -2100f, count: 18,
                       minY: 700f, maxY: 1700f, scale: 2.2f, alpha: 0.78f);
+
+        // Everything that says which war this is. Sits just in front of the first
+        // ridge so it is silhouetted rather than swallowed by it.
+        Scenery.Build(root, arena, seed: 20260817);
     }
 
     /// <summary>One flat cutout standing at a fixed depth.</summary>
