@@ -12,6 +12,13 @@ public sealed record AircraftSpec
 {
     public required string Name { get; init; }
 
+    /// <summary>
+    /// Which prepared model to draw, without the extension. The renderer looks for
+    /// res://models/&lt;ModelName&gt;.glb and falls back to the procedural airframe if
+    /// it is not there, so a fresh clone with no downloaded models still runs.
+    /// </summary>
+    public string ModelName { get; init; } = "camel";
+
     // --- Mass and geometry ---
     public double MassKg { get; init; } = 659.0;
     public double WingAreaM2 { get; init; } = 21.46;
@@ -244,6 +251,50 @@ public sealed record AircraftSpec
 
         // The tail was fighting the pilot harder than it needed to.
         WeathercockGain = 2.0,
+    };
+
+    /// <summary>
+    /// The Fokker Dr.I, and the reason there is more than one aircraft.
+    ///
+    /// Two identical aircraft can never disengage from each other: neither one can
+    /// build the speed or the height to leave, so every fight is a turn fight until
+    /// somebody dies. Giving the two sides genuinely different strengths is what
+    /// creates the option to run, and what makes choosing your moment matter.
+    ///
+    /// The historical contrast is exactly the one the game wants. The triplane
+    /// out-climbs and out-turns anything, and it is slow: three wings are a great
+    /// deal of lift and a great deal of drag. The Camel is the faster aeroplane, so
+    /// a Camel pilot who is losing a turn fight can extend away and come back, and
+    /// a Dr.I pilot cannot chase them down. Neither one wins by default.
+    /// </summary>
+    public static readonly AircraftSpec FokkerDr1Arcade = new()
+    {
+        Name = "Fokker Dr.I (arcade)",
+        ModelName = "dr1",
+
+        LengthM = 5.77,
+        MassKg = 495.0,          // lighter than the Camel
+        WingAreaM2 = 18.66,      // three wings, and it is all lift
+        WingSpanM = 7.20,
+
+        // Turns and climbs better than anything else in the sky.
+        ClMax = 2.20,
+        GLimit = 9.0,
+        TurnRateScale = 1.0,
+        MaxSlewRateRad = 4.5,
+        PushFactor = 0.60,
+        WeathercockGain = 2.0,
+
+        // And pays for it in speed. Three wings, six struts and all that wire.
+        Cd0 = 0.031,
+        OswaldEfficiency = 0.86,
+        EnginePowerW = 121_000.0,
+        PropEfficiency = 0.75,
+        StaticThrustN = 3900.0,
+
+        // Twin Spandaus, same as the Vickers for now.
+        HalfRollSeconds = 0.32,  // stubby span, rolls fast
+        FlatTurnSeconds = 0.92,
     };
 
     /// <summary>

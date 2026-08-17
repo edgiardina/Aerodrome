@@ -29,8 +29,19 @@ param(
     [double]$RotateY = 0,
     [double]$RotateZ = 0,
     [ValidateSet("+X", "-X", "+Y", "-Y", "+Z", "-Z")][string]$NoseAxis = "+X",
-    [ValidateSet("+X", "-X", "+Y", "-Y", "+Z", "-Z")][string]$UpAxis = "+Y",
-    [double]$PropCut = 0.93
+    [ValidateSet("+X", "-X", "+Y", "-Y", "+Z", "-Z")][string]$UpAxis = "+Z",
+    # Degrees nose up, applied after the nose is turned to +X. Models are built
+    # parked on their undercarriage, and a taildragger sits nose-high, so a
+    # negative value here levels it onto its flight attitude.
+    [double]$Pitch = 0,
+    [double]$PropCut = 0.93,
+    # Largest texture edge to keep. Sketchfab ships 2K and 4K PBR sets, which is
+    # 30 MB of detail for an aircraft that is 150 pixels tall on screen.
+    [int]$TextureSize = 1024,
+    # Objects to delete before converting, by index or name fragment. Scanned
+    # scenes often ship a ground plane or a display stand, and either one ruins
+    # the bounding box the scaling depends on.
+    [string]$Drop = ""
 )
 
 $ErrorActionPreference = 'Stop'
@@ -64,14 +75,21 @@ if ($Inspect) {
     return
 }
 
-$exportDir = Join-Path $root 'assets\export'
+# Inside the Godot project on purpose. Godot only imports what lives under
+# res://, so a .glb sitting in assets/export next door is invisible to it.
+$exportDir = Join-Path $root 'game\models'
 New-Item -ItemType Directory -Force -Path $exportDir | Out-Null
 $out = Join-Path $exportDir "$Name.glb"
 
+# The axis flags use --flag=value, not --flag value. A value like "-X" looks like
+# an option to argparse, and it rejects it as a missing argument.
 & $blender --background --python $script -- $sourceFull `
     --out $out --name $Name --length $Length --budget $Budget `
     --rotate-x $RotateX --rotate-y $RotateY --rotate-z $RotateZ `
-    --nose-axis $NoseAxis --up-axis $UpAxis --prop-cut $PropCut
+    "--nose-axis=$NoseAxis" "--up-axis=$UpAxis" --prop-cut $PropCut --pitch $Pitch `
+    --texture-size $TextureSize "--drop=$Drop"
+
+if ($LASTEXITCODE -ne 0) { throw "Blender failed with exit code $LASTEXITCODE" }
 
 if (Test-Path $out) {
     $kb = [math]::Round((Get-Item $out).Length / 1KB)

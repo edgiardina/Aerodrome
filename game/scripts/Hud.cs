@@ -61,6 +61,7 @@ public sealed partial class Hud : Control
     private static readonly (string What, string Who, string Licence)[] Credits =
     {
         ("Sopwith Camel model", "bradacvojtech (Sketchfab)", "CC-BY 4.0"),
+        ("Fokker Dr.I model", "KojfDiscord (Sketchfab)", "CC-BY 4.0"),
     };
 
     public bool ShowCredits { get; set; }

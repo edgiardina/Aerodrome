@@ -192,8 +192,14 @@ public sealed partial class Main : Node3D
         _sim.Add(SimAircraft.Create(spec, team: 0, "player",
             AircraftState.Spawn(spec, new Vec2(700, 300), 0.0, 62.0)));
 
-        _sim.Add(SimAircraft.Create(spec, team: 1, "red",
-            AircraftState.Spawn(spec, new Vec2(1900, 380), Math.PI, 60.0)));
+        // The enemy flies a triplane. Two identical aircraft can never disengage
+        // from each other, so every fight is a turn fight to the death. The Dr.I
+        // out-turns and out-climbs the Camel and is slower in level flight, which
+        // means each pilot has something the other cannot answer, and running away
+        // becomes a real option instead of a wish.
+        var enemySpec = AircraftSpec.FokkerDr1Arcade;
+        _sim.Add(SimAircraft.Create(enemySpec, team: 1, "red",
+            AircraftState.Spawn(enemySpec, new Vec2(1900, 380), Math.PI, 58.0)));
 
         _enemyPilot = new PilotAi(_skill, seed + 101u);
 
@@ -322,7 +328,8 @@ public sealed partial class Main : Node3D
                 new Vector3((float)state.Position.X, (float)Math.Max(state.Position.Y, 1.0), 0f),
                 new Vector2((float)state.Velocity.X, (float)state.Velocity.Y),
                 state.Theta,
-                aircraft.Team == Team.Player ? PlayerColor : EnemyColor);
+                aircraft.Team == Team.Player ? PlayerColor : EnemyColor,
+                aircraft.Spec.ModelName);
 
             AddChild(wreck);
         }

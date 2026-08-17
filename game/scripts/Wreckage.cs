@@ -31,7 +31,8 @@ public sealed partial class Wreckage : Node3D
     private double _age;
     private bool _grounded;
 
-    public static Wreckage Create(Vector3 position, Vector2 velocity, double theta, Color teamColor)
+    public static Wreckage Create(Vector3 position, Vector2 velocity, double theta,
+                                  Color teamColor, string modelName)
     {
         var rng = new RandomNumberGenerator();
         rng.Randomize();
@@ -49,7 +50,7 @@ public sealed partial class Wreckage : Node3D
                                   rng.RandfRange(-3.4f, 3.4f)),
         };
 
-        wreck._airframe = BiplaneFactory.Build(teamColor).Root;
+        wreck._airframe = BiplaneFactory.Build(teamColor, modelName).Root;
         wreck._airframe.Basis = new Basis(Vector3.Back, (float)theta);
         wreck.AddChild(wreck._airframe);
 

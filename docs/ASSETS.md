@@ -32,7 +32,22 @@ Rules:
 
 | Asset | Author | Source | License | Verified | Changes |
 |---|---|---|---|---|---|
-| Sopwith Camel | bradacvojtech | [Sketchfab](https://sketchfab.com/3d-models/sopwith-camel-70ad9a87976e4d4eaeedaa4cd78dc94b) | **CC-BY 4.0** ("CC Attribution", slug `by`) | yes, 2026-08-16 | decimate, split propeller, re-orient |
+| Sopwith Camel | bradacvojtech | [Sketchfab](https://sketchfab.com/3d-models/sopwith-camel-70ad9a87976e4d4eaeedaa4cd78dc94b) | **CC-BY 4.0** | yes, 2026-08-16 | decimate to 12k, split propeller, turn round, level off 13 degrees |
+| Fokker Dr.I | KojfDiscord | [Sketchfab](https://sketchfab.com/3d-models/fokker-dri-rise-of-flights-700ec52cb0744508b0774219979ca2bc) | **CC-BY 4.0** | yes, 2026-08-16 | decimate to 12k, split propeller, rotate span off X |
+
+### The exact commands used
+
+```powershell
+.\tools\prepare-model.ps1 .\assets\source\camel\scene.gltf -Name camel `
+    -NoseAxis '-X' -Drop 'ground' -Budget 12000 -TextureSize 1024 -Pitch -13
+
+.\tools\prepare-model.ps1 .\assets\source\dr1\scene.gltf -Name dr1 `
+    -RotateZ -90 -NoseAxis '+X' -Drop '0' -Budget 12000 -TextureSize 1024 -Length 5.77
+```
+
+Both needed something different, which is the point of inspecting first. The
+Camel arrived nose-aft and parked nose-high on its undercarriage. The Dr.I
+arrived with its wingspan along X, and shipped a one-face object that had to go.
 
 ### The Camel license, confirmed
 

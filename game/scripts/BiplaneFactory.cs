@@ -34,10 +34,12 @@ public static class BiplaneFactory
     }
 
     /// <summary>
-    /// Where a processed model lives if one has been made. Godot only sees files
-    /// under the project, so the export folder is reachable as a relative path.
+    /// Where a processed model lives if one has been made.
+    ///
+    /// Inside the Godot project, not in assets/export next door, because Godot
+    /// only imports what lives under res:// and silently sees nothing outside it.
     /// </summary>
-    private const string ModelPath = "res://../assets/export/camel.glb";
+    private static string ModelPath(string name) => $"res://models/{name}.glb";
 
     /// <summary>
     /// Use the real model if it has been prepared, otherwise the boxes.
@@ -47,19 +49,20 @@ public static class BiplaneFactory
     /// tools/prepare-model.ps1 first, so a fresh clone has no model in it. The game
     /// must still run.
     /// </summary>
-    public static Parts Build(Color teamColor)
+    public static Parts Build(Color teamColor, string modelName = "camel")
     {
-        var imported = TryBuildImported(teamColor);
+        var imported = TryBuildImported(teamColor, modelName);
         if (imported is not null) return imported;
 
         return BuildPlaceholder(teamColor);
     }
 
-    private static Parts? TryBuildImported(Color teamColor)
+    private static Parts? TryBuildImported(Color teamColor, string modelName)
     {
-        if (!ResourceLoader.Exists(ModelPath)) return null;
+        string path = ModelPath(modelName);
+        if (!ResourceLoader.Exists(path)) return null;
 
-        var scene = ResourceLoader.Load<PackedScene>(ModelPath);
+        var scene = ResourceLoader.Load<PackedScene>(path);
         if (scene is null) return null;
 
         var root = scene.Instantiate<Node3D>();
@@ -103,9 +106,12 @@ public static class BiplaneFactory
     {
         if (node is MeshInstance3D mesh)
         {
+            // Barely there. An unshaded overlay reads far stronger than its alpha
+            // suggests, and at 0.18 it painted half the aeroplane blue and buried
+            // the roundels and the paintwork that make the model worth having.
             var overlay = new StandardMaterial3D
             {
-                AlbedoColor = new Color(teamColor, 0.18f),
+                AlbedoColor = new Color(teamColor, 0.055f),
                 Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
                 ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
             };

@@ -32,7 +32,7 @@ public sealed partial class AircraftView : Node3D
     public static AircraftView Create(SimAircraft aircraft, Color teamColor)
     {
         var view = new AircraftView { Name = $"View_{aircraft.Callsign}", Aircraft = aircraft };
-        view._parts = BiplaneFactory.Build(teamColor);
+        view._parts = BiplaneFactory.Build(teamColor, aircraft.Spec.ModelName);
         view._icon = BiplaneFactory.BuildIcon(teamColor);
         view.AddChild(view._parts.Root);
         view.AddChild(view._icon);
