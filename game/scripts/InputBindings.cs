@@ -31,6 +31,12 @@ public static class InputBindings
     public const string CycleScheme = "cycle_scheme";
     public const string DebugOverlay = "debug_overlay";
     public const string Restart = "restart";
+    public const string CycleEnemies = "cycle_enemies";
+    public const string Mute = "mute";
+    public const string TuningPanel = "tuning_panel";
+    public const string TuningSave = "tuning_save";
+    public const string TuningLoad = "tuning_load";
+    public const string TuningReset = "tuning_reset";
 
     public static void Register()
     {
@@ -88,6 +94,22 @@ public static class InputBindings
         Action(DebugOverlay, Key.F3);
         Action(Restart, Key.R);
         Pad(Restart, JoyButton.Start);
+
+        // --- Tuning and match setup ------------------------------------------
+        // The tuning panel is keyboard and mouse only on purpose. Every pad button
+        // worth having is already flying the aeroplane, and the one place a d-pad
+        // would fit is the Classic 8-way heading control.
+        Action(TuningPanel, Key.F4);
+        Action(TuningSave, Key.F9);
+        Action(TuningLoad, Key.F10);
+        Action(TuningReset, Key.Home);
+        Action(CycleEnemies, Key.F6);
+
+        // Mute. Needs to be one key, always available, no menu in the way. An
+        // engine loop you cannot silence makes the game unusable next to anything
+        // else, and the scripted capture runs it unattended.
+        Action(Mute, Key.M);
+        Pad(Mute, JoyButton.RightStick);
     }
 
     private static void Action(string name, params Key[] keys)

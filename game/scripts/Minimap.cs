@@ -30,13 +30,15 @@ public sealed partial class Minimap : Control
     private SimRunner _sim = null!;
     private ChaseCamera _camera = null!;
     private Arena _arena = null!;
+    private Func<Flight?> _flight = null!;
 
-    public static Minimap Create(SimRunner sim, ChaseCamera camera) => new()
+    public static Minimap Create(SimRunner sim, ChaseCamera camera, Func<Flight?> flight) => new()
     {
         Name = "Minimap",
         _sim = sim,
         _camera = camera,
         _arena = sim.Arena,
+        _flight = flight,
         MouseFilter = MouseFilterEnum.Ignore,
         AnchorRight = 1,
         AnchorBottom = 1,
@@ -83,7 +85,11 @@ public sealed partial class Minimap : Control
         Vector2 topLeft = ToMap(rect, new Vector2(center.X - half.X, center.Y + half.Y));
         Vector2 bottomRight = ToMap(rect, new Vector2(center.X + half.X, center.Y - half.Y));
 
-        var box = new Rect2(topLeft, bottomRight - topLeft).Abs();
+        // Far View shows slightly more than the whole arena, so the box would spill
+        // outside the map and draw a stray line across the screen.
+        var box = new Rect2(topLeft, bottomRight - topLeft).Abs().Intersection(rect);
+        if (box.Size.X <= 0 || box.Size.Y <= 0) return;
+
         DrawRect(box, new Color(ViewportBox, 0.10f), true);
         DrawRect(box, ViewportBox, false, 1.4f);
     }
@@ -91,11 +97,17 @@ public sealed partial class Minimap : Control
     private void DrawContact(Rect2 rect, SimAircraft a)
     {
         bool isPlayer = a.Team == Team.Player;
-        Color color = isPlayer ? PlayerMark : EnemyMark;
+        bool pressing = !isPlayer && ReferenceEquals(_flight()?.Engaged, a.Combatant);
+
+        Color color = isPlayer ? PlayerMark : pressing ? EnemyMark : new Color(EnemyMark, 0.55f);
         Vector2 p = ToMap(rect, new Vector2((float)a.State.Position.X, (float)a.State.Position.Y));
 
         float radius = isPlayer ? 3.4f : 2.8f;
         DrawCircle(p, radius, color);
+
+        // Ring the one that is actually attacking. The rest are holding a perch,
+        // and the map has to say which is which or three dots read as three threats.
+        if (pressing) DrawArc(p, 6.5f, 0, Mathf.Tau, 16, EnemyMark, 1.3f, true);
 
         // A facing tick, so the map shows which way each contact is pointed.
         var nose = new Vector2((float)Math.Cos(a.State.Theta), -(float)Math.Sin(a.State.Theta));

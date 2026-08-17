@@ -128,4 +128,44 @@ public sealed class Match
 
         return match;
     }
+
+    /// <summary>
+    /// One aircraft against a flight of several. The enemy comes in a stepped line
+    /// astern, each one a little higher and further out, which is how a flight
+    /// actually arrived and which gives the coordinator something to work with from
+    /// the first tick instead of a stack of aircraft in the same piece of sky.
+    /// </summary>
+    public static Match Engagement(
+        Arena arena, AircraftSpec playerSpec, AircraftSpec enemySpec, int enemyCount,
+        uint seed, double speed = 62.0)
+    {
+        var match = new Match(arena, seed);
+        double altitude = arena.CeilingM * 0.45;
+        double margin = arena.WidthM * 0.25;
+
+        match.Add(new Combatant
+        {
+            Spec = playerSpec,
+            Team = 0,
+            Callsign = "blue",
+            State = AircraftState.Spawn(playerSpec, new Vec2(margin, altitude), 0.0, speed),
+        });
+
+        for (int i = 0; i < enemyCount; i++)
+        {
+            var position = new Vec2(
+                arena.WidthM - margin + i * 190.0,
+                Math.Min(arena.CeilingM - 120.0, altitude + 70.0 + i * 90.0));
+
+            match.Add(new Combatant
+            {
+                Spec = enemySpec,
+                Team = 1,
+                Callsign = $"red {i + 1}",
+                State = AircraftState.Spawn(enemySpec, position, Math.PI, speed - 4.0),
+            });
+        }
+
+        return match;
+    }
 }

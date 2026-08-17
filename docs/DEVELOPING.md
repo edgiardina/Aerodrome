@@ -126,9 +126,60 @@ before it will fire again, so it is a deliberate whack, not something you hold.
 | Near / Far view | `V` | Left bumper | `V` |
 | Classic 8-way toggle | `C` | Y | `C` |
 | Opponent skill | `1` / `2` / `3` | | |
+| How many opponents | `F6` | | `F6` |
+| Mute | `M` | Right stick click | `M` |
 | Restart | `R` | Start | `R` |
 | Switch control scheme | `F2` | Back | `F2` |
 | Frame graph | `F3` | | `F3` |
+| Flight model panel | `F4` | | `F4` |
+
+## The enemy flight
+
+`F6` sets how many aircraft the enemy puts up, from one to four. The default is
+two.
+
+They do not all attack at once. One of them presses the attack. The rest hold a
+perch above and on the far side of you, keep their height and speed, and take
+over the moment the attacker loses the position. A supporting pilot still shoots
+if you fly across its nose, but it will not hunt you.
+
+Read it off the screen this way:
+
+- The **red** marker with a ring round it is the one attacking you.
+- **Yellow** markers are holding a perch. They are a threat later, not now.
+- The minimap rings the attacker too, and dims the rest.
+
+Downing one of them makes the whole flight break off for about four and a half
+seconds. `THEY BREAK OFF` appears on the HUD. That is the only window in the
+fight where you choose what happens next, so use it to climb, to run, or to pick
+your next target.
+
+## The flight model panel
+
+`F4` opens sliders for every number that decides how the aeroplane feels, and
+they take effect while you fly.
+
+| Key | What it does |
+|---|---|
+| Up / Down | Pick a setting |
+| Left / Right | Change it by one step |
+| Shift + Left / Right | Change it by five steps |
+| Click or drag a bar | Set it directly |
+| `Home` | Put the selected setting back to the shipped value |
+| `T` | Apply to both aircraft, or to the player only |
+| `F9` / `F10` | Save and load `user://tuning.json` |
+
+A white tick on each bar marks the shipped value, so you can always see how far
+you have wandered. The label turns green when a setting is off default.
+
+The panel writes real `AircraftSpec` fields, so a setting you like can be copied
+straight into the source. The bottom of the panel gives the stall speed, the
+corner speed, the peak turn rate and the loop time, which is faster than flying
+a lap to find out you made it worse.
+
+Changes to the enemy are applied as a **ratio** of its own baseline, not as the
+same absolute number. The Camel and the Dr.I are deliberately different aircraft,
+and a panel that flattened them into one would undo the reason there are two.
 
 ## Gun jams
 

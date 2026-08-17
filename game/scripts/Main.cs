@@ -28,10 +28,21 @@ public sealed partial class Main : Node3D
     private readonly HashSet<SimAircraft> _wrecked = new();
     private bool _creditsHeld;
     private BulletView _bulletView = null!;
-    private PilotAi _enemyPilot = null!;
     private GameAudio _audio = null!;
     private AiSkill _skill = AiSkill.Veteran;
     private int _roundNumber;
+    private CanvasLayer _ui = null!;
+    private TuningPanel _tuning = null!;
+
+    // One pilot per enemy aircraft, plus the coordinator that decides which of them
+    // presses the attack. See Flight: three opponents all attacking at once is a
+    // firing squad, not a dogfight.
+    private readonly List<PilotAi> _pilots = new();
+    private Flight _enemyFlight = null!;
+
+    /// <summary>How many aircraft the enemy puts up. F2 cycles it.</summary>
+    private int _enemyCount = 2;
+    private const int MaxEnemies = 4;
 
     // --- Automated capture, for checking the build without a human at the keyboard.
     // Run: godot --path game -- --shot <dir>
@@ -39,6 +50,14 @@ public sealed partial class Main : Node3D
     private DemoPilot? _autoPilot;
     private double _captureTime;
     private int _nextShot;
+    private bool _restartedForFlight;
+
+    /// <summary>
+    /// Enemies during the scripted capture. One for the duel routine, then the
+    /// full flight for the last few frames, because a formation and a panel are
+    /// exactly the sort of thing that looks fine in code and wrong on screen.
+    /// </summary>
+    private int _captureEnemies = 1;
 
     public override void _Ready()
     {
@@ -67,8 +86,24 @@ public sealed partial class Main : Node3D
 
         _shotDir = dir.Replace('\\', '/').TrimEnd('/');
         _autoPilot = new DemoPilot();
-        GD.Print($"[capture] writing frames to {_shotDir}");
+
+        // A scripted run nobody is watching should not be making noise at whoever
+        // is sitting next to it.
+        SetMuted(true);
+
+        GD.Print($"[capture] writing frames to {_shotDir}, audio muted = {IsMuted()}");
     }
+
+    /// <summary>
+    /// Silence everything. M toggles it, and the capture forces it on.
+    ///
+    /// Bus 0 by index, not by name. GetBusIndex("Master") returns -1 if the lookup
+    /// misses, and SetBusMute(-1, true) fails silently, which is how the first
+    /// version of this managed to look muted without being muted.
+    /// </summary>
+    public static void SetMuted(bool muted) => AudioServer.SetBusMute(0, muted);
+
+    public static bool IsMuted() => AudioServer.IsBusMute(0);
 
     /// <summary>
     /// Fly the scripted routine, screenshot at fixed times, and quit. Scheduled on
@@ -91,6 +126,9 @@ public sealed partial class Main : Node3D
         (37.60, "11-explosion",       false),
         (39.50, "12-wreck-falling",   false),
         (43.00, "13-wreck-burning",   false),
+        (46.50, "14-flight-far",      true),
+        (48.20, "15-flight-near",     false),
+        (49.60, "16-tuning-panel",    false),
     };
 
     private void RunCapture(double delta)
@@ -141,6 +179,17 @@ public sealed partial class Main : Node3D
             player.AirframeIntegrity = 0.0;
             player.OnFire = true;
         }
+
+        // The duel is finished and burning. Put a whole flight up and look at the
+        // formation, the markers, and the tuning panel while we are here.
+        if (_captureTime > 44.0 && !_restartedForFlight)
+        {
+            _restartedForFlight = true;
+            _captureEnemies = 3;
+            StartMatch();
+        }
+
+        if (_captureTime > 48.9 && !_tuning.Open) _tuning.Toggle();
 
         if (_nextShot >= CaptureSchedule.Length)
         {
@@ -199,6 +248,7 @@ public sealed partial class Main : Node3D
         foreach (var view in _views) view.QueueFree();
         _views.Clear();
         _bulletView?.QueueFree();
+        _wrecked.Clear();
 
         _roundNumber++;
         uint seed = (uint)(_roundNumber * 7919 + 13);
@@ -210,16 +260,32 @@ public sealed partial class Main : Node3D
         _sim.Add(SimAircraft.Create(spec, team: 0, "player",
             AircraftState.Spawn(spec, new Vec2(700, 300), 0.0, 62.0)));
 
-        // The enemy flies a triplane. Two identical aircraft can never disengage
+        // The enemy flies triplanes. Two identical aircraft can never disengage
         // from each other, so every fight is a turn fight to the death. The Dr.I
         // out-turns and out-climbs the Camel and is slower in level flight, which
         // means each pilot has something the other cannot answer, and running away
         // becomes a real option instead of a wish.
         var enemySpec = AircraftSpec.FokkerDr1Arcade;
-        _sim.Add(SimAircraft.Create(enemySpec, team: 1, "red",
-            AircraftState.Spawn(enemySpec, new Vec2(1900, 380), Math.PI, 58.0)));
 
-        _enemyPilot = new PilotAi(_skill, seed + 101u);
+        // The capture routine is scripted against one opponent for most of its run.
+        int enemies = _autoPilot is not null ? _captureEnemies : _enemyCount;
+
+        _pilots.Clear();
+        _enemyFlight = new Flight(team: 1);
+
+        for (int i = 0; i < enemies; i++)
+        {
+            // Stepped line astern: each one a little further out and a little
+            // higher. They arrive as a formation rather than as a stack.
+            var position = new Vec2(1900 + i * 190, Math.Min(arena.CeilingM - 120, 380 + i * 90));
+
+            var enemy = SimAircraft.Create(enemySpec, team: 1, $"red {i + 1}",
+                AircraftState.Spawn(enemySpec, position, Math.PI, 58.0));
+
+            _sim.Add(enemy);
+            _enemyFlight.Add(enemy.Combatant);
+            _pilots.Add(new PilotAi(_skill, seed + 101u + (uint)i * 37u));
+        }
 
         foreach (var effect in _effects) effect.QueueFree();
         _effects.Clear();
@@ -248,12 +314,14 @@ public sealed partial class Main : Node3D
         _camera = ChaseCamera.Create(_sim, arena);
         AddChild(_camera);
 
-        var ui = new CanvasLayer { Name = "UI" };
-        AddChild(ui);
-        _hud = Hud.Create(_sim, _camera, _input, () => _skill);
-        _minimap = Minimap.Create(_sim, _camera);
-        ui.AddChild(_hud);
-        ui.AddChild(_minimap);
+        // The layer itself is built once in BuildWorld. Adding a fresh one every
+        // round left a dead CanvasLayer behind on each restart.
+        _hud = Hud.Create(_sim, _camera, _input, () => _skill, () => _enemyFlight);
+        _minimap = Minimap.Create(_sim, _camera, () => _enemyFlight);
+        _ui.AddChild(_hud);
+        _ui.AddChild(_minimap);
+
+        _tuning.Retarget(_sim);
     }
 
     // --- The two loops ------------------------------------------------------
@@ -264,10 +332,16 @@ public sealed partial class Main : Node3D
             : _autoPilot is not null ? _autoPilot.Fly(_sim.Player, _sim.Arena)
             : _input.Poll();
 
+        // The flight decides who goes in BEFORE anybody flies, so every pilot this
+        // tick is working from the same picture.
+        _enemyFlight.Update(_sim.Match, _sim.Arena, delta);
+
         for (int i = 1; i < _sim.Aircraft.Count; i++)
         {
             var enemy = _sim.Aircraft[i];
-            enemy.Input = _enemyPilot.Fly(enemy.Combatant, _sim.Player.Combatant, _sim.Arena, delta);
+            enemy.Input = _pilots[i - 1].Fly(
+                enemy.Combatant, _enemyFlight.Target, _sim.Arena, delta,
+                _enemyFlight.OrdersFor(enemy.Combatant));
         }
 
         _sim.Step();
@@ -294,6 +368,8 @@ public sealed partial class Main : Node3D
             if (_creditsHeld) _hud.ShowCredits = !_hud.ShowCredits;
         }
         if (Input.IsActionJustPressed(InputBindings.DebugOverlay)) _hud.ShowDebug = !_hud.ShowDebug;
+        if (Input.IsActionJustPressed(InputBindings.TuningPanel)) _tuning.Toggle();
+        if (Input.IsActionJustPressed(InputBindings.Mute)) SetMuted(!IsMuted());
         if (Input.IsActionJustPressed(InputBindings.Restart)) { StartMatch(); return; }
 
         if (_autoPilot is null)
@@ -353,7 +429,11 @@ public sealed partial class Main : Node3D
         }
     }
 
-    /// <summary>Number keys pick the opponent. Takes effect on the next round.</summary>
+    /// <summary>
+    /// Number keys pick how good the opponent is. F2 picks how many of them there
+    /// are. Both restart the round, because changing either mid-fight would be
+    /// changing the rules on somebody who is already losing.
+    /// </summary>
     private void HandleDifficultyKeys()
     {
         AiSkill? picked =
@@ -365,6 +445,14 @@ public sealed partial class Main : Node3D
         {
             _skill = picked;
             GD.Print($"[aerodrome] opponent set to {_skill.Name}, starting a new round");
+            StartMatch();
+            return;
+        }
+
+        if (Input.IsActionJustPressed(InputBindings.CycleEnemies))
+        {
+            _enemyCount = _enemyCount % MaxEnemies + 1;
+            GD.Print($"[aerodrome] enemy flight of {_enemyCount}, starting a new round");
             StartMatch();
         }
     }
@@ -378,6 +466,15 @@ public sealed partial class Main : Node3D
 
         _audio = GameAudio.Create();
         AddChild(_audio);
+
+        // The UI layer and the tuning panel are built once and outlive every round.
+        // The panel especially: its whole value is that a setting survives the
+        // restart you press to go and try it again.
+        _ui = new CanvasLayer { Name = "UI" };
+        AddChild(_ui);
+
+        _tuning = TuningPanel.Create();
+        _ui.AddChild(_tuning);
 
         AddChild(new WorldEnvironment { Name = "Environment", Environment = BuildEnvironment() });
 

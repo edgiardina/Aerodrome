@@ -165,6 +165,115 @@ public static class SelfPlay
         return wins + losses > 0 ? (double)wins / (wins + losses) : 0.5;
     }
 
+    /// <summary>
+    /// What happened when one pilot fought a flight. The last two numbers are the
+    /// ones that say whether the coordination is doing its job.
+    /// </summary>
+    public readonly record struct FlightResult(
+        int Matches,
+        int LoneWins,
+        int FlightWins,
+        int Draws,
+        double AverageSeconds,
+        double AveragePressing,
+        double GangUpRate)
+    {
+        public double LoneWinRate => Matches > 0 ? (double)LoneWins / Matches : 0;
+
+        public override string ToString() =>
+            $"{Matches} matches: lone {LoneWins} / flight {FlightWins} / draw {Draws}  " +
+            $"({LoneWinRate:P0} lone)  avg {AverageSeconds:F0}s  " +
+            $"pressing {AveragePressing:F2}  ganged {GangUpRate:P1}";
+    }
+
+    /// <summary>
+    /// One pilot against a flight of several, so the coordinator can be measured
+    /// rather than admired.
+    ///
+    /// GangUpRate is the number that matters. It is the fraction of ticks where more
+    /// than one enemy had the lone pilot inside gun range with the trigger down. If
+    /// that climbs, the flight has gone back to being a firing squad, whatever the
+    /// role assignment says it is doing.
+    /// </summary>
+    public static FlightResult RunFlight(
+        int matches,
+        int enemyCount = 3,
+        AiSkill? skill = null,
+        AircraftSpec? loneSpec = null,
+        AircraftSpec? enemySpec = null,
+        Arena? arena = null,
+        uint seed = 1,
+        double timeLimitSeconds = 120.0)
+    {
+        skill ??= AiSkill.Veteran;
+        loneSpec ??= AircraftSpec.CamelArcade;
+        enemySpec ??= AircraftSpec.FokkerDr1Arcade;
+        arena ??= DefaultArena;
+
+        int lone = 0, flightWins = 0, draws = 0;
+        double totalSeconds = 0, totalPressing = 0, gangTicks = 0, totalTicks = 0;
+
+        for (int i = 0; i < matches; i++)
+        {
+            uint matchSeed = seed + (uint)i * 7919u;
+            var match = Match.Engagement(arena, loneSpec, enemySpec, enemyCount, matchSeed);
+
+            var lonePilot = new PilotAi(skill, matchSeed + 11u);
+            var flight = new Flight(team: 1);
+            var pilots = new PilotAi[enemyCount];
+
+            for (int e = 0; e < enemyCount; e++)
+            {
+                flight.Add(match.Combatants[e + 1]);
+                pilots[e] = new PilotAi(skill, matchSeed + 23u + (uint)e * 37u);
+            }
+
+            int limit = (int)(timeLimitSeconds * FlightModel.TickRate);
+            for (int t = 0; t < limit && match.Outcome == RoundOutcome.InProgress; t++)
+            {
+                var blue = match.Combatants[0];
+                blue.Input = lonePilot.Fly(blue, match.NearestEnemy(blue), arena, FlightModel.FixedDt);
+
+                flight.Update(match, arena, FlightModel.FixedDt);
+
+                int shooting = 0, pressing = 0;
+                for (int e = 0; e < enemyCount; e++)
+                {
+                    var red = match.Combatants[e + 1];
+                    red.Input = pilots[e].Fly(red, flight.Target, arena, FlightModel.FixedDt,
+                                              flight.OrdersFor(red));
+
+                    if (!red.IsAlive) continue;
+
+                    double range = (blue.State.Position - red.State.Position).Length;
+                    if (range < 300.0) pressing++;
+                    if (red.Input.FireHeld && range < skill.FireRangeM) shooting++;
+                }
+
+                totalPressing += pressing;
+                if (shooting > 1) gangTicks++;
+                totalTicks++;
+
+                match.Step();
+            }
+
+            switch (match.Outcome)
+            {
+                case RoundOutcome.TeamZeroWins: lone++; break;
+                case RoundOutcome.TeamOneWins: flightWins++; break;
+                default: draws++; break;
+            }
+
+            totalSeconds += match.Elapsed;
+        }
+
+        return new FlightResult(
+            matches, lone, flightWins, draws,
+            matches > 0 ? totalSeconds / matches : 0,
+            totalTicks > 0 ? totalPressing / totalTicks : 0,
+            totalTicks > 0 ? gangTicks / totalTicks : 0);
+    }
+
     public static Arena DefaultArena => new()
     {
         Name = "Self-play range",

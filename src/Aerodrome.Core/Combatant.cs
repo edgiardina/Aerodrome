@@ -7,7 +7,12 @@ namespace Aerodrome.Core;
 /// </summary>
 public sealed class Combatant
 {
-    public required AircraftSpec Spec { get; init; }
+    /// <summary>
+    /// Settable, not init-only, so the live tuning panel can hand an aircraft a
+    /// revised spec mid-flight. Nothing in the sim writes it, and nothing should:
+    /// treat it as fixed for the length of a round unless a human is turning a knob.
+    /// </summary>
+    public required AircraftSpec Spec { get; set; }
     public required AircraftState State { get; set; }
     public required int Team { get; init; }
     public string Callsign { get; init; } = "unknown";

@@ -26,19 +26,22 @@ public sealed partial class Hud : Control
     private ChaseCamera _camera = null!;
     private PlayerInput _input = null!;
     private Func<AiSkill> _skill = null!;
+    private Func<Flight?> _flight = null!;
     private Font _font = null!;
 
     private readonly float[] _frameMs = new float[FrameSamples];
     private int _frameIndex;
     public bool ShowDebug { get; set; } = true;
 
-    public static Hud Create(SimRunner sim, ChaseCamera camera, PlayerInput input, Func<AiSkill> skill) => new()
+    public static Hud Create(SimRunner sim, ChaseCamera camera, PlayerInput input,
+                             Func<AiSkill> skill, Func<Flight?> flight) => new()
     {
         Name = "Hud",
         _sim = sim,
         _camera = camera,
         _input = input,
         _skill = skill,
+        _flight = flight,
         MouseFilter = MouseFilterEnum.Ignore,
         AnchorRight = 1,
         AnchorBottom = 1,
@@ -113,7 +116,8 @@ public sealed partial class Hud : Control
         var s = _sim.Player.State;
         var spec = _sim.Player.Spec;
 
-        DrawRect(new Rect2(14, 14, 236, 330), Panel, true);
+        // Tall enough for the mute row, which only appears when it applies.
+        DrawRect(new Rect2(14, 14, 236, 372), Panel, true);
 
         float y = 36;
         Row("AIRSPEED", $"{s.Airspeed * 3.6:F0} km/h", ref y, SpeedColor(s, spec));
@@ -139,14 +143,21 @@ public sealed partial class Hud : Control
         Bar("FUEL", s.FuelSystemHealth, ref y, HealthColor(s.FuelSystemHealth));
 
         y += 8;
-        Row("ENEMY", _skill().Name, ref y, Dim);
+        Row("ENEMY", EnemyLine(), ref y, Dim);
         Row("STICK", _input.ControlScheme == PlayerInput.Scheme.Stick ? "COLUMN (pad)"
             : _input.ClassicMode ? "CLASSIC 8-WAY" : "point to aim", ref y, Dim);
+
+        if (Main.IsMuted()) Row("AUDIO", "MUTED  (M)", ref y, Warn);
 
         void Row(string label, string value, ref float rowY, Color color)
         {
             DrawString(_font, new Vector2(26, rowY), label, HorizontalAlignment.Left, -1, 11, Dim);
-            DrawString(_font, new Vector2(238, rowY), value, HorizontalAlignment.Right, 0, 13, color);
+
+            // A width of 0 does NOT right-align, it just draws from the position
+            // given, so every value used to run out past the edge of the panel.
+            const float valueW = 148f;
+            DrawString(_font, new Vector2(238 - valueW, rowY), value,
+                       HorizontalAlignment.Right, valueW, 13, color);
             rowY += 19;
         }
 
@@ -159,6 +170,18 @@ public sealed partial class Hud : Control
             DrawRect(new Rect2(x, rowY - 8, w * (float)Math.Clamp(fraction, 0, 1), 6), color, true);
             rowY += 19;
         }
+    }
+
+    /// <summary>
+    /// How good they are, and how many are left. "2 of 3" is the number the player
+    /// is actually keeping in their head during a flight engagement.
+    /// </summary>
+    private string EnemyLine()
+    {
+        var flight = _flight();
+        if (flight is null || flight.Members.Count <= 1) return _skill().Name;
+
+        return $"{_skill().Name}  {flight.AliveCount} of {flight.Members.Count}";
     }
 
     private static string GunStatus(AircraftState s)
@@ -204,14 +227,20 @@ public sealed partial class Hud : Control
     /// <summary>
     /// A kill from a target the player could never have seen is a bug, not a
     /// difficulty setting. Every enemy outside the viewport gets a border marker.
+    ///
+    /// With a whole flight up there, one more thing has to be legible: which of them
+    /// is actually coming for you. The others are holding a perch and will not shoot
+    /// unless you fly across their nose, so a marker that treated all three as the
+    /// same threat would be telling you the wrong thing three times.
     /// </summary>
     private void DrawOffscreenMarkers(Vector2 size)
     {
         var player = _sim.Player;
+        var flight = _flight();
         Vector2 camCenter = _camera.CenterM;
         double halfW = _camera.VisibleWidthM * 0.5;
         double halfH = _camera.VisibleHeightM * 0.5;
-        const float margin = 26f;
+        const float margin = 42f;
 
         foreach (var other in _sim.Aircraft)
         {
@@ -222,17 +251,26 @@ public sealed partial class Hud : Control
             if (onScreen) continue;
 
             var toward = new Vector2((float)(p.X - camCenter.X), -(float)(p.Y - camCenter.Y)).Normalized();
-            Vector2 edge = size * 0.5f + toward * (Math.Min(size.X, size.Y) * 0.5f - margin);
+            Vector2 edge = size * 0.5f + toward * BorderDistance(size, toward, margin);
 
             double range = (p - player.State.Position).Length;
-            float alpha = (float)Math.Clamp(1.2 - range / 2200.0, 0.30, 1.0);
-            var color = new Color(Danger, alpha);
+            bool pressing = flight is not null && ReferenceEquals(flight.Engaged, other.Combatant);
 
-            // Triangle pointing outward, toward the contact.
+            float alpha = (float)Math.Clamp(1.2 - range / 2200.0, pressing ? 0.65 : 0.30, 1.0);
+            var color = new Color(pressing ? Danger : Warn, alpha);
+
+            // Triangle pointing outward, toward the contact. The one pressing the
+            // attack gets a bigger one with a ring round it.
             Vector2 perp = new(-toward.Y, toward.X);
+            float nose = pressing ? 14f : 11f;
+            float back = pressing ? 9f : 7f;
+            float half = pressing ? 10f : 8f;
+
             DrawColoredPolygon(
-                new[] { edge + toward * 11f, edge - toward * 7f + perp * 8f, edge - toward * 7f - perp * 8f },
+                new[] { edge + toward * nose, edge - toward * back + perp * half, edge - toward * back - perp * half },
                 color);
+
+            if (pressing) DrawArc(edge, 17f, 0, Mathf.Tau, 20, color, 1.6f, true);
 
             // Relative altitude tick: above you or below you.
             double dy = p.Y - player.State.Position.Y;
@@ -247,6 +285,26 @@ public sealed partial class Hud : Control
         }
     }
 
+    /// <summary>
+    /// How far from the centre a marker sits, so it lands on the screen BORDER
+    /// rather than on a circle inscribed in it.
+    ///
+    /// The circle wasted the whole width of a 16:9 screen, and worse, it squeezed
+    /// contacts together: a flight all off to one side arrived as three markers
+    /// stacked on the same spot, which reads as one aircraft. Pushing them out to
+    /// the real edge spreads the same angles across far more pixels.
+    /// </summary>
+    private static float BorderDistance(Vector2 size, Vector2 toward, float margin)
+    {
+        float halfX = Math.Max(1f, size.X * 0.5f - margin);
+        float halfY = Math.Max(1f, size.Y * 0.5f - margin);
+
+        float tx = Math.Abs(toward.X) > 1e-4f ? halfX / Math.Abs(toward.X) : float.MaxValue;
+        float ty = Math.Abs(toward.Y) > 1e-4f ? halfY / Math.Abs(toward.Y) : float.MaxValue;
+
+        return Math.Min(tx, ty);
+    }
+
     // --- Warnings -----------------------------------------------------------
 
     private void DrawWarnings(Vector2 size)
@@ -257,7 +315,10 @@ public sealed partial class Hud : Control
         if (_sim.Outcome != RoundOutcome.InProgress)
         {
             bool won = _sim.Outcome == RoundOutcome.TeamZeroWins;
-            Banner(size, y, won ? "ENEMY DOWN" : _sim.Outcome == RoundOutcome.Draw ? "NO RESULT" : "YOU ARE DOWN",
+            var flight = _flight();
+            string victory = flight is not null && flight.Members.Count > 1 ? "FLIGHT DESTROYED" : "ENEMY DOWN";
+
+            Banner(size, y, won ? victory : _sim.Outcome == RoundOutcome.Draw ? "NO RESULT" : "YOU ARE DOWN",
                    won ? Good : Danger, 38);
 
             if (!won && s.Death != DeathCause.None)
@@ -273,11 +334,20 @@ public sealed partial class Hud : Control
 
             Banner(size, y + 62, $"rounds fired {_sim.Player.Spec.AmmoRounds - s.Ammo}   " +
                                  $"hits {_sim.Player.Combatant.HitsScored}", Dim, 13);
-            Banner(size, y + 84, "R to fly again        1 / 2 / 3 to change the opponent", Dim, 13);
+            Banner(size, y + 84, "R to fly again    1 / 2 / 3 opponent skill    F6 how many", Dim, 13);
             return;
         }
 
         if (!s.IsAlive) return;
+
+        // Downing one of them buys a few seconds while the rest go high and regroup.
+        // Say so: it is the only window in a flight engagement where you get to
+        // choose what happens next instead of answering somebody else's choice.
+        if (_flight() is { IsShaken: true, AliveCount: > 0 })
+        {
+            Banner(size, size.Y * 0.24f, "THEY BREAK OFF", Good, 22);
+            Banner(size, size.Y * 0.24f + 22, "climb, run, or reload the situation", Dim, 12);
+        }
 
         if (s.IsFlatTurning)
         {

@@ -2,7 +2,7 @@ using System;
 
 namespace Aerodrome.Core;
 
-public enum Behavior { Merge, TurnFight, BoomAndZoom, Extend, Scissors, Disengage }
+public enum Behavior { Merge, TurnFight, BoomAndZoom, Extend, Scissors, Disengage, Support }
 
 /// <summary>
 /// An opponent that flies the aircraft, rather than being flown by the game.
@@ -46,6 +46,7 @@ public sealed class PilotAi
     private double _jamPumpTimer;
     private double _scissorsTimer;
     private int _scissorsSide = 1;
+    private Combatant? _lastTarget;
 
     public PilotAi(AiSkill skill, uint seed)
     {
@@ -54,7 +55,13 @@ public sealed class PilotAi
         _sinceDecision = _rng.NextDouble() * skill.DecisionPeriodS;   // desynchronise pilots
     }
 
-    public AircraftInput Fly(Combatant self, Combatant? enemy, Arena arena, double dt)
+    /// <summary>
+    /// Fly one tick. <paramref name="orders"/> is what the pilot's flight has told
+    /// it to do. Leave it out and the pilot fights alone, which is what a single
+    /// opponent has always done.
+    /// </summary>
+    public AircraftInput Fly(Combatant self, Combatant? enemy, Arena arena, double dt,
+                             FlightOrders orders = default)
     {
         var s = self.State;
         if (!s.IsAlive) return AircraftInput.Neutral;
@@ -64,6 +71,16 @@ public sealed class PilotAi
 
         if (enemy is null || !enemy.IsAlive)
             return Cruise(self, arena);
+
+        // The delayed picture is a history of ONE aircraft. Switching targets and
+        // keeping the buffer would have the pilot lead the new target using the old
+        // one's track, which is not a reaction time, it is a hallucination.
+        if (!ReferenceEquals(enemy, _lastTarget))
+        {
+            _lastTarget = enemy;
+            _historyHead = 0;
+            _historyFilled = 0;
+        }
 
         RecordTarget(enemy.State);
         GetDelayedTarget(out Vec2 targetPos, out Vec2 targetVel);
@@ -76,7 +93,7 @@ public sealed class PilotAi
             _sinceDecision = 0;
             _aimError = Wander(_aimError, Skill.AimErrorRad);
 
-            Behavior wanted = Decide(self, enemy, targetPos, arena);
+            Behavior wanted = Decide(self, enemy, targetPos, arena, orders);
             if (wanted != Current && (_behaviourHeld >= MinimumCommitmentS || wanted == Behavior.Disengage))
             {
                 Current = wanted;
@@ -84,12 +101,19 @@ public sealed class PilotAi
             }
         }
 
-        return Execute(self, enemy, targetPos, targetVel, arena);
+        // Being ordered off the attack is not a change of mind, so it does not wait
+        // for the commitment timer. A pilot the flight has pulled out has to break
+        // now, or two aircraft press the same target and the coordination is a lie.
+        if (orders.Role == FlightRole.Supporting && Current is Behavior.TurnFight or Behavior.Merge or Behavior.BoomAndZoom)
+            Current = Behavior.Support;
+
+        return Execute(self, enemy, targetPos, targetVel, arena, orders);
     }
 
     // --- Deciding what to do ------------------------------------------------
 
-    private Behavior Decide(Combatant self, Combatant enemy, Vec2 targetPos, Arena arena)
+    private Behavior Decide(Combatant self, Combatant enemy, Vec2 targetPos, Arena arena,
+                            FlightOrders orders)
     {
         var s = self.State;
         var e = enemy.State;
@@ -110,6 +134,10 @@ public sealed class PilotAi
             return energyEdge < -40 ? Behavior.Extend : Behavior.Scissors;
         }
 
+        // Everything above this line is self preservation, and no order outranks
+        // it. Below it, a supporting pilot does as it is told.
+        if (orders.Role == FlightRole.Supporting) return Behavior.Support;
+
         if (range > 520) return Behavior.Merge;
 
         // A big height advantage is worth spending in a dive and rebuilding after.
@@ -127,7 +155,8 @@ public sealed class PilotAi
     // --- Doing it -----------------------------------------------------------
 
     private AircraftInput Execute(
-        Combatant self, Combatant enemy, Vec2 targetPos, Vec2 targetVel, Arena arena)
+        Combatant self, Combatant enemy, Vec2 targetPos, Vec2 targetVel, Arena arena,
+        FlightOrders orders)
     {
         var s = self.State;
         var spec = self.Spec;
@@ -152,6 +181,10 @@ public sealed class PilotAi
                     desired = s.Position.X > arena.WidthM * 0.5 ? Math.PI : 0.0;
                 desired = Climb(desired, s.Position.Y < 320 ? 0.30 : 0.12);
                 preferFlatTurn = true;
+                break;
+
+            case Behavior.Support:
+                desired = HoldStation(s, orders.Station, targetPos, out throttle);
                 break;
 
             case Behavior.Scissors:
@@ -194,7 +227,7 @@ public sealed class PilotAi
         bool emergency = AvoidBoundaries(s, arena, ref desired);
         if (emergency) { throttle = 1.0; preferFlatTurn = false; }
 
-        bool fire = ShouldFire(self, targetPos, targetVel);
+        bool fire = ShouldFire(self, targetPos, targetVel, opportunistOnly: Current == Behavior.Support);
         var command = Steer(s, spec, desired, throttle, fire, preferFlatTurn, emergency);
 
         // Work a jam the same way the player has to: pump the handle. Without this
@@ -263,13 +296,20 @@ public sealed class PilotAi
         return true;
     }
 
-    private bool ShouldFire(Combatant self, Vec2 targetPos, Vec2 targetVel)
+    /// <summary>
+    /// <paramref name="opportunistOnly"/> is for a pilot holding a perch. It is not
+    /// harmless up there, but it is not hunting either: it takes the shot only if
+    /// the target flies right across its nose. Letting supporting pilots fire on
+    /// normal terms undoes the whole point of the flight, because three aircraft
+    /// then put three streams of fire into the same target anyway.
+    /// </summary>
+    private bool ShouldFire(Combatant self, Vec2 targetPos, Vec2 targetVel, bool opportunistOnly = false)
     {
         var s = self.State;
         if (!s.GunsCanBear || s.Ammo <= 0) return false;
 
         double range = (targetPos - s.Position).Length;
-        if (range > Skill.FireRangeM) return false;
+        if (range > (opportunistOnly ? 130.0 : Skill.FireRangeM)) return false;
 
         if (!Guns.Intercept(s.Position, s.Velocity, self.Spec.MuzzleVelocity,
                             targetPos, targetVel, out double aim, out _))
@@ -277,7 +317,34 @@ public sealed class PilotAi
 
         // Only squeeze when the nose is genuinely near the solution. Ammo is finite
         // and heat causes jams, so spraying is self-defeating.
-        return Math.Abs(Angles.Delta(s.Theta, aim + _aimError)) < Skill.FireConeRad;
+        double cone = opportunistOnly ? Skill.FireConeRad * 0.55 : Skill.FireConeRad;
+        return Math.Abs(Angles.Delta(s.Theta, aim + _aimError)) < cone;
+    }
+
+    /// <summary>
+    /// Fly the perch.
+    ///
+    /// A supporting fighter is not hiding. It holds height and speed so that the
+    /// moment the engaged pilot loses the position it can take the fight over with
+    /// an advantage already in hand. And because the perch sits on the far side of
+    /// the target, it is standing in the way of the escape, which is what stops a
+    /// flight being something you can simply outrun.
+    /// </summary>
+    private static double HoldStation(AircraftState s, Vec2 station, Vec2 targetPos, out double throttle)
+    {
+        Vec2 toStation = station - s.Position;
+
+        if (toStation.Length > 140.0)
+        {
+            throttle = 1.0;
+            return toStation.Angle;
+        }
+
+        // On station. Hold level, pointed at the target's side of the sky, with
+        // enough in hand to dive on it. Full power up here only overshoots.
+        throttle = 0.82;
+        double level = targetPos.X >= s.Position.X ? 0.0 : Math.PI;
+        return Climb(level, toStation.Y > 40.0 ? 0.25 : 0.0);
     }
 
     /// <summary>

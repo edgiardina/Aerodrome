@@ -216,3 +216,51 @@ reports true speed through space. There is a test that pins it.
    (185 km/h). Decide whether that matters for the feel.
 4. Decide whether other aircraft types scale from the arcade preset or get their
    own honest-then-tuned pass.
+
+---
+
+## The flight model panel
+
+`F4` puts every number above on a slider, live, while you fly.
+
+The reason is that none of the open items below can be settled by argument. The
+only way to know whether a loop should take 3.0 s or 3.4 s is to fly both, ten
+seconds apart. Editing a constant, rebuilding and relaunching breaks that loop
+badly enough that you stop trying things, which is how a tuning pass turns into
+a set of numbers nobody has questioned since the day they were written.
+
+The panel writes real `AircraftSpec` fields, so a setting that feels right can go
+straight into the source with no translation.
+
+Two things it shows that a source file does not:
+
+- **Stall speed, corner speed, peak turn rate, and loop time**, recomputed as you
+  drag. Corner speed is the number the whole dogfight orbits around, and it is a
+  derived value, so a change to mass or to `ClMax` moves it in ways that are hard
+  to predict by reading.
+- **A tick at the shipped value on every bar.** You can always see how far you
+  have wandered, and get back by eye.
+
+Enemy aircraft take the same change as a **ratio** of their own baseline. Setting
+`ClMax` to 2.2 on the Camel does not set the Dr.I to 2.2, it raises the Dr.I by
+the same proportion. The two aircraft are meant to be different, and a panel that
+flattened them would quietly undo the only reason there is more than one.
+
+### What to reach for first
+
+1. `nose slew cap` and `turn rate scale` for how sharp the aircraft feels.
+2. `parasite drag Cd0` and `engine power` for how fast it bleeds and rebuilds
+   energy. These decide whether extending away is a real option.
+3. `camera view width` is on the panel too. It is not a spec field, but how close
+   the camera sits changes the game as much as any of them: it decides how much
+   warning you get.
+
+### Still open
+
+The items below are unchanged. The panel does not answer any of them, it only
+makes them cheap to answer.
+
+1. Tune against the original in DOSBox. Nothing here has been compared to
+   AAOWITS yet.
+2. `WeathercockGain` of 2.0 is still a guess.
+3. The arcade top speed is still about 260 km/h against a real 185 km/h.

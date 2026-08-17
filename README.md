@@ -10,15 +10,43 @@ ground war, no bombing runs. You start in the air.
 
 Milestones 0 and 1 are done. Milestone 2 is playable.
 
-- `Aerodrome.Core` flies and fights. 76 tests pass in about 20 seconds.
+- `Aerodrome.Core` flies and fights. 88 tests pass in about 25 seconds.
 - All three reversals work: the Immelmann, the Split-S, and the flat turn.
   Stall, spin, and spin recovery work.
 - Guns, ballistics, jams, and component damage work.
 - An energy-aware AI at three skill levels flies through the same controls the
   player uses.
+- Two real aircraft: the Sopwith Camel and the Fokker Dr.I, with genuinely
+  different strengths.
+- Up to four opponents, flying as a coordinated flight rather than a crowd.
+- A live flight model panel on `F4`, so the feel can be dialled in while flying.
+- Procedural audio with hit markers. `M` mutes.
 - The Godot layer runs at over 1300 fps on an RTX 3080 Ti, at 0.75 ms a frame.
 
-Still to do for M2: audio, hit and smoke effects, and a proper round UI.
+Still to do for M2: a proper round UI and menus.
+
+## Fighting more than one
+
+Three aircraft all attacking at once is a firing squad, not a dogfight, and it is
+not what a flight did anyway. One opponent presses the attack. The rest hold a
+perch above and on the far side of you, keeping their height and speed, ready to
+take over the moment the attacker loses the position.
+
+Two things follow, and both are the point. You are only ever fought by one
+aircraft, so a flight is survivable. And the perch sits between you and the open
+sky, so running away from a flight costs something.
+
+Down one of them and the survivors break off for four and a half seconds. That is
+the window where you choose what happens next instead of answering somebody
+else's choice.
+
+Self-play, twelve rounds a side, a lone Camel against a flight of Dr.Is:
+
+| Opponents | Lone pilot wins | Two or more firing at once |
+|---|---|---|
+| 1 | 67% | 0.0% |
+| 2 | 25% | 0.0% |
+| 3 | 17% | 0.0% |
 
 ## The three ways to turn around
 

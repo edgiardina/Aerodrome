@@ -26,11 +26,13 @@ public sealed partial class ChaseCamera : Camera3D
     /// aircraft is big enough to read its attitude, and knowing where the other
     /// one is becomes a thing you have to work at.
     /// </summary>
-    public const double NearViewWidthM = 250.0;
+    /// Static rather than const so the live tuning panel can move it while you fly.
+    /// How close the camera sits is a gameplay decision, not a constant.
+    public static double NearViewWidthM = 250.0;
     /// <summary>Widest the duel framing may pull back before it stops trying.</summary>
-    public const double MaxDuelWidthM = 520.0;
+    public static double MaxDuelWidthM = 520.0;
     /// <summary>Range within which the camera frames both fighters instead of just the player.</summary>
-    public const double FramingRangeM = 330.0;
+    public static double FramingRangeM = 330.0;
     /// <summary>Meters the player may drift before the camera starts to chase.</summary>
     public const double DeadzoneM = 9.0;
 
@@ -140,7 +142,10 @@ public sealed partial class ChaseCamera : Camera3D
                 // Duel framing. Bias toward the player so the fight never drifts to
                 // the edge of the screen while the enemy hogs the middle.
                 desired = playerPos.Lerp(oppPos, 0.4f);
-                _targetWidth = Math.Clamp(separation * 2.1 + 90.0, NearViewWidthM, MaxDuelWidthM);
+                // Max() rather than the bare constant: the tuning panel can push the
+                // resting width past the duel limit, and Clamp throws if it does.
+                _targetWidth = Math.Clamp(separation * 2.1 + 90.0,
+                                          NearViewWidthM, Math.Max(MaxDuelWidthM, NearViewWidthM));
                 ApplyDeadzone(desired);
                 return;
             }
