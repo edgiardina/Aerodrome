@@ -136,6 +136,7 @@ public sealed partial class Main : Node3D
         (18.60, "05b-overspeed",      false),
         (21.00, "06-dogfight-late",   false),
         (23.80, "07-tracers",         false),
+        (24.30, "07b-tracers-close",  false),
         (28.00, "08-smoking",         false),
         (31.50, "09-burning",         false),
         (34.40, "10-closeup-camel",   false),
@@ -195,6 +196,11 @@ public sealed partial class Main : Node3D
         }
         if (_captureTime is > 26.0 and < 26.2) { player.EngineHealth = 0.25; player.AirframeIntegrity = 0.45; }
         if (_captureTime is > 30.0 and < 30.2) { player.OnFire = true; player.FireTime = 0; }
+
+        // Close in while the guns are going, so the size of a tracer against the
+        // aeroplane firing it can be judged rather than guessed at.
+        if (_captureTime is > 23.9 and < 24.6) _camera.ForcedWidthM = 110.0;
+        else if (_captureTime is > 24.6 and < 24.8) _camera.ForcedWidthM = null;
 
         // Close in on each airframe in turn so both models can be checked by eye.
         // Orientation mistakes are invisible at fighting range and obvious here.
@@ -554,7 +560,7 @@ public sealed partial class Main : Node3D
 
         _camera.Render(alpha, delta);
         foreach (var view in _views) view.Render(alpha, _camera.VisibleWidthM);
-        _bulletView.Render();
+        _bulletView.Render(alpha);
 
         for (int i = 0; i < _effects.Count; i++)
         {

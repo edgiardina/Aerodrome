@@ -267,6 +267,21 @@ public sealed partial class TuningPanel : Control
         });
         Add(new Knob
         {
+            // For scale: the aircraft is drawn about 20 m long.
+            Label = "tracer length", Key = "tracer", Min = 1.0, Max = 20.0, Step = 0.5,
+            Format = "F1", Unit = " m",
+            ReadWorld = () => BulletView.StreakLengthM,
+            WriteWorld = v => BulletView.StreakLengthM = (float)v,
+        });
+        Add(new Knob
+        {
+            Label = "tracer thickness", Key = "tracerw", Min = 0.05, Max = 1.50, Step = 0.02,
+            Format = "F2", Unit = " m",
+            ReadWorld = () => BulletView.StreakWidthM,
+            WriteWorld = v => BulletView.StreakWidthM = (float)v,
+        });
+        Add(new Knob
+        {
             Label = "duel framing range", Key = "camframe", Min = 120, Max = 1200, Step = 10,
             Format = "F0", Unit = " m",
             ReadWorld = () => ChaseCamera.FramingRangeM,

@@ -541,3 +541,49 @@ is nobody left to fight, and which had no roll in it at all.
 So a survivor who happened to be upside down when the last enemy went down stayed
 upside down for the rest of the round, on an engine that starves after two
 seconds of negative G. Ed saw it after every win. One line.
+
+---
+
+## Tracer size
+
+Ed: "the tracer line is still way too large compared to the aircraft", and then
+"it's not just the length its the height too". Both correct.
+
+The aircraft is a 5.71 m Camel drawn at three and a half times life size, so it
+is about 20 m on screen. The tracer streak was **17 m long and 1.5 m thick**.
+Every round was nearly as long as the aeroplane that fired it, and thicker than
+the interplane struts.
+
+### Why it was that big, and what had to be fixed first
+
+The number could not simply be turned down. A round does 745 m/s and the sim
+steps at 120 Hz, so it moves **6.2 m per tick**, and the tracers were drawn at
+their raw sim positions with no interpolation. Any streak shorter than that jump
+left a visible gap between frames, so a burst strobed instead of flowing. The
+17 m streak was covering for the gap.
+
+`BulletView.Render` now takes the same physics interpolation fraction everything
+else uses and rewinds each round along its own velocity to the sub-tick moment
+being drawn. That removes the floor, and the streak can be sized to look right
+rather than to hide a seam.
+
+### The numbers
+
+| | before | after | as a fraction of the aircraft |
+|---|---|---|---|
+| length | 17 m | 4.5 m | 85% to 22% |
+| thickness | 1.5 m | 0.18 m | 7.5% to 0.9% |
+
+A real bullet is 8 mm across, so 0.18 m is still exaggerated twenty times over.
+It does not need any more than that.
+
+Both are on the F4 panel, since this is exactly the sort of thing that wants to
+be judged by eye rather than argued about.
+
+### Still open
+
+`TracerEvery` is 3, which puts about one tracer on screen at a time in a 210 m
+view. That was tuned when a streak was 17 m long, and a smaller streak carries
+less. Left alone for now because the interpolation makes what is there flow
+properly, which recovers a good deal of the readability on its own. If a burst
+reads as too sparse, that constant is the lever, not the streak size.
