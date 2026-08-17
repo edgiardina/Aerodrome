@@ -58,10 +58,20 @@ public sealed partial class Hud : Control
 
     public override void _Ready() => _font = ThemeDB.FallbackFont;
 
+    /// <summary>
+    /// Seconds left to keep showing the refusal. RollRefused is set for a single
+    /// sim tick, which at 120 Hz is invisible, so it has to be held on screen.
+    /// </summary>
+    private double _refusedFor;
+
     public override void _Process(double delta)
     {
         _frameMs[_frameIndex] = (float)(delta * 1000.0);
         _frameIndex = (_frameIndex + 1) % FrameSamples;
+
+        if (_sim.Player.State.RollRefused) _refusedFor = 1.1;
+        else _refusedFor = Math.Max(0.0, _refusedFor - delta);
+
         QueueRedraw();
     }
 
@@ -424,6 +434,14 @@ public sealed partial class Hud : Control
 
         if (s.IsSpinning) { Banner(size, y, "SPIN", Danger, 28); y += 30; }
         else if (s.IsStalled) { Banner(size, y, "STALL", Warn, 24); y += 26; }
+
+        // A control that silently does nothing reads as a broken game. Say why.
+        if (_refusedFor > 0)
+        {
+            Banner(size, y, "NO AIRSPEED", Danger, 20);
+            Banner(size, y + 20, "get the nose down first", Dim, 12);
+            y += 40;
+        }
 
         if (s.FuelStarvation > 0.01)
             Banner(size, y, $"FUEL STARVING  {(1 - s.FuelStarvation) * 100:F0}% POWER", Warn, 16);

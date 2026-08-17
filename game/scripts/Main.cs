@@ -130,6 +130,7 @@ public sealed partial class Main : Node3D
         (1.20, "01-level",            false),
         (2.12, "02-flat-turn",        false),
         (6.60, "03-half-loop",        false),
+        (9.20, "03b-no-airspeed",     false),
         (11.50, "04-far-view",        true),
         (16.00, "05-dogfight",        false),
         (18.60, "05b-overspeed",      false),
@@ -155,6 +156,18 @@ public sealed partial class Main : Node3D
         // Force damage on so the capture always exercises the smoke and fire trails.
         // Capture mode only: nothing here runs in a normal session.
         var player = _sim.Player.State;
+
+        // Hang it on the propeller, nose up and barely moving, so the refusal cue
+        // gets looked at. The roll press itself goes in through the normal input
+        // path in _PhysicsProcess: the point is to see the real refusal, not a
+        // flag set by hand.
+        if (_captureTime is > 8.3 and < 9.6)
+            player.Velocity = Vec2.FromAngle(Math.PI * 0.42, 5.0);
+
+        // Let any roll already running finish first. A press is only refused when
+        // there is nothing in progress, so a half roll started at speed and still
+        // wallowing would hide the very thing being photographed.
+        if (_captureTime is > 8.3 and < 8.4) player.RollRemaining = 0;
 
         // Drive it past the never-exceed speed so the overspeed warning and the red
         // arc on the airspeed dial both get looked at.
@@ -476,6 +489,11 @@ public sealed partial class Main : Node3D
         _sim.Player.Input = !_sim.Player.State.IsAlive ? AircraftInput.Neutral
             : _autoPilot is not null ? _autoPilot.Fly(_sim.Player, _sim.Arena)
             : _input.Poll();
+
+        // Capture only: ask for a roll while hanging, so the refusal is a real one
+        // coming back through the flight model rather than a flag set for the shot.
+        if (_shotDir is not null && _captureTime is > 8.6 and < 9.6)
+            _sim.Player.Input = _sim.Player.Input with { RollPressed = true };
 
         // Both flights decide who goes in BEFORE anybody flies, so every pilot this
         // tick is working from the same picture.

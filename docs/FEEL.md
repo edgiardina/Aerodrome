@@ -478,3 +478,66 @@ There is a real version of the same picture, though, and it is correct: pull out
 of a dive and you are level while still over the limit, because drag takes a few
 seconds to catch up. The tolerance was raised from 3.5 s to 5.5 s so that easing
 off always saves you within that window.
+
+---
+
+## Control authority, and the wingmen who flew home upside down
+
+Two reports from Ed, one a missing rule and one a plain bug.
+
+### "If you are stalled you shouldn't be able to roll"
+
+He was right, and the reason he gives is the correct one: "you should have
+airspeed for that".
+
+The roll rate was a flat `PI / HalfRollSeconds` with no airspeed term at all. An
+aeroplane hanging on its propeller at walking pace snapped inverted exactly as
+fast as one doing 400 km/h. That removes a real reason to keep your speed up, and
+it makes recovering from a stall by rolling a thing, which it is not.
+
+`SurfaceAuthority` scales with dynamic pressure, so with the square of airspeed.
+The elevator boost and the flat turn go through it too.
+
+| Airspeed | x stall | Half roll |
+|---|---|---|
+| 29 km/h | 0.55 | refused |
+| 50 km/h | 0.97 | 0.73 s |
+| 68 km/h | 1.32 | 0.42 s |
+| 94 km/h | 1.80 | 0.35 s |
+| 252 km/h | 4.85 | 0.35 s |
+
+Normal handling is untouched, which was the constraint. Fights run at fifteen to
+thirty times the stall speed.
+
+**A judgement call worth flagging.** Read strictly, "if you are stalled" would
+block the roll whenever `IsStalled` is set. But self-play shows the aircraft is
+stalled for thirteen to seventeen percent of ticks in a hard fight, because that
+is what pulling to the edge of the envelope means, so a hard block would make the
+aeroplane feel broken during ordinary flying. A separated wing is therefore mushy
+rather than dead: 0.83 s for a half roll instead of 0.35. Only running out of
+airspeed refuses outright. The flat turn refuses on either, because a separated
+wing genuinely cannot fly one.
+
+**Refusing to START, rather than rolling slowly from zero.** Beginning a roll
+that cannot finish leaves the pilot on knife edge with no lift and no way out.
+Not answering is the better failure. The HUD says `NO AIRSPEED` so it does not
+read as an unresponsive control.
+
+### An ordering trap this exposed
+
+`s.IsStalled` is set by the aerodynamics, which run AFTER the roll and the flat
+turn have already been decided. One tick of staleness never matters in
+continuous flight, but both of those are commit-once decisions, and a maneuver
+committed on the first tick after a state change was being judged on the wrong
+picture. `StalledNow` recomputes it from the current geometry for those two
+gates.
+
+### The wingmen
+
+Every path through `PilotAi` routes through `Steer`, which rights the aeroplane
+after it has been inverted too long. Except one: `Cruise`, which runs when there
+is nobody left to fight, and which had no roll in it at all.
+
+So a survivor who happened to be upside down when the last enemy went down stayed
+upside down for the rest of the round, on an engine that starves after two
+seconds of negative G. Ed saw it after every win. One line.

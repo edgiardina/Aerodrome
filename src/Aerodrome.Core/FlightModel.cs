@@ -22,12 +22,21 @@ public static class FlightModel
     {
         if (!s.IsAlive) return;
 
+        // Control power comes from dynamic pressure, so it has to be known before
+        // any surface moves. Reads last tick's airspeed, which is a hundred and
+        // twentieth of a second stale and cannot meaningfully differ.
+        bool stalledNow = StalledNow(s, spec, arena);
+        double surfaceAuthority =
+            SurfaceAuthority(s, spec, s.Airspeed, Atmosphere.Density(s.Position.Y), stalledNow);
+
+        s.RollRefused = false;
+
         // A flat turn takes the aircraft out of normal flight for about a second.
         // It runs its own integration and skips the rest of the model.
-        if (StepFlatTurn(s, spec, input, arena, dt)) return;
+        if (StepFlatTurn(s, spec, input, arena, surfaceAuthority, stalledNow, dt)) return;
 
         StepThrottle(s, spec, input, dt);
-        double rollAuthority = StepRoll(s, spec, input, dt);
+        double rollAuthority = StepRoll(s, spec, input, surfaceAuthority, dt);
 
         // Aerodynamics work against the air, not against the ground. Wind changes
         // every energy trade in the arena, so it belongs here and not in a shader.
@@ -63,7 +72,7 @@ public static class FlightModel
         Vec2 accel = force / spec.MassKg;
 
         StepSpin(s, spec, v, rho, dt);
-        StepHeading(s, spec, input, v, rho, rollAuthority, dt);
+        StepHeading(s, spec, input, v, rho, rollAuthority * surfaceAuthority, dt);
         Weathercock(s, spec, velAngle, alpha, q, dt);
 
         // Semi-implicit Euler. It is symplectic, so a ballistic arc keeps its energy
@@ -93,17 +102,34 @@ public static class FlightModel
     /// Halfway through a roll the wings are vertical, so there is almost no way to
     /// pull. That is why a roll under fire is a real commitment.
     /// </summary>
-    private static double StepRoll(AircraftState s, AircraftSpec spec, AircraftInput input, double dt)
+    private static double StepRoll(
+        AircraftState s, AircraftSpec spec, AircraftInput input, double authority, double dt)
     {
         if (s.RollRemaining <= 0)
         {
-            if (input.AileronRollPressed) s.RollRemaining = Angles.TwoPi;
-            else if (input.RollPressed) s.RollRemaining = Math.PI;
+            // No air over the ailerons, no roll. Refusing to START is deliberate:
+            // beginning a roll you cannot finish would leave the pilot stuck on
+            // knife edge with no lift and no way out, which is a worse answer than
+            // simply not answering.
+            bool canCommit = authority >= MinimumAuthorityToCommit;
+
+            if (canCommit)
+            {
+                if (input.AileronRollPressed) s.RollRemaining = Angles.TwoPi;
+                else if (input.RollPressed) s.RollRemaining = Math.PI;
+            }
+            else if (input.AileronRollPressed || input.RollPressed)
+            {
+                s.RollRefused = true;
+            }
         }
 
         if (s.RollRemaining > 0)
         {
-            double rate = Math.PI / spec.HalfRollSeconds;
+            // A roll already under way keeps going, but at the rate the air allows.
+            // Bleed off mid-roll and it turns into a slow wallow, which is exactly
+            // what it should feel like.
+            double rate = Math.PI / spec.HalfRollSeconds * Math.Max(0.15, authority);
             double step = Math.Min(s.RollRemaining, rate * dt);
             s.RollAngle = Angles.Wrap0To2Pi(s.RollAngle + step);
             s.RollRemaining -= step;
@@ -145,7 +171,8 @@ public static class FlightModel
     /// </summary>
     /// <returns>True when the flat turn owns this tick and the caller must stop.</returns>
     private static bool StepFlatTurn(
-        AircraftState s, AircraftSpec spec, AircraftInput input, Arena arena, double dt)
+        AircraftState s, AircraftSpec spec, AircraftInput input, Arena arena,
+        double surfaceAuthority, bool stalledNow, double dt)
     {
         if (!s.IsFlatTurning)
         {
@@ -154,8 +181,17 @@ public static class FlightModel
             // You cannot swap ends without enough air over the wing. Too slow means
             // you have to dive for speed first, which costs you the altitude you
             // were trying to keep.
+            //
+            // Stalled counts as too slow even if the number says otherwise: this is
+            // a rudder and aileron maneuver, and a separated wing will not fly it.
             double rhoNow = Atmosphere.Density(s.Position.Y);
-            if (s.Airspeed < StallSpeed(spec, rhoNow) * 1.05) return false;
+            if (stalledNow ||
+                surfaceAuthority < MinimumAuthorityToCommit ||
+                s.Airspeed < StallSpeed(spec, rhoNow) * 1.05)
+            {
+                s.RollRefused = true;
+                return false;
+            }
 
             s.BeginFlatTurn();
         }
@@ -330,9 +366,11 @@ public static class FlightModel
 
         // EffectiveControl, not ControlHealth: a shot-away tail and a wounded pilot
         // both cost you the nose, and the player should feel that before they die.
+        //
+        // The caller has already folded in the dynamic pressure term, which carries
+        // the stall and spin penalties with it. Applying them again here would
+        // square them.
         double authority = rollAuthority * s.EffectiveControl;
-        if (s.IsStalled) authority *= 0.35;
-        if (s.IsSpinning) authority *= spec.SpinAuthority;
 
         double maxRate = MaxSlewRate(airspeed, density, spec) * authority * stickScale;
 
@@ -489,6 +527,69 @@ public static class FlightModel
 
     public static double StallSpeed(AircraftSpec spec, double density)
         => Math.Sqrt(2.0 * spec.MassKg * Atmosphere.Gravity / (density * spec.WingAreaM2 * spec.ClMax));
+
+    /// <summary>Airspeed, as a multiple of the stall, at which the surfaces have full bite.</summary>
+    private const double FullAuthoritySpeedFactor = 1.3;
+
+    /// <summary>
+    /// How much bite the control surfaces have right now, 0 to 1.
+    ///
+    /// Ailerons, elevator and rudder all work by deflecting air across a surface,
+    /// so their power goes with dynamic pressure and therefore with the SQUARE of
+    /// airspeed. Below flying speed they are cloth in a breeze.
+    ///
+    /// This was missing from the roll entirely: the roll rate was a flat
+    /// PI / HalfRollSeconds, so an aeroplane hanging on its propeller at walking
+    /// pace could snap inverted exactly as fast as one doing 400 km/h. Recovering
+    /// from a stall by rolling is not a thing, and it took away the reason to keep
+    /// your speed up.
+    ///
+    /// In ordinary flight this is simply 1. The Camel stalls at 14 m/s and fights
+    /// between 60 and 110, so nothing here touches normal handling. It only bites
+    /// where it should: at the top of a botched loop, hanging in a stall, or in a
+    /// spin.
+    /// </summary>
+    public static double SurfaceAuthority(
+        AircraftState s, AircraftSpec spec, double airspeed, double density, bool stalled)
+    {
+        double stall = StallSpeed(spec, density);
+        if (stall < 1e-6) return 1.0;
+
+        double ratio = airspeed / (stall * FullAuthoritySpeedFactor);
+        double q = Math.Clamp(ratio * ratio, 0.0, 1.0);
+
+        // A stalled wing has separated flow over the ailerons whatever the speed,
+        // which is why a stall drops a wing rather than answering the stick.
+        if (stalled) q *= 0.35;
+        if (s.IsSpinning) q *= spec.SpinAuthority;
+
+        return q;
+    }
+
+    /// <summary>
+    /// Is the wing stalled RIGHT NOW, from this tick's geometry?
+    ///
+    /// s.IsStalled is left over from the previous tick, because it is not set until
+    /// the aerodynamics run, and the roll and the flat turn are both decided before
+    /// that. One tick of staleness never matters in continuous flight, but it means
+    /// a maneuver committed on the first tick after a state change is judged on the
+    /// wrong picture. These are commit-once decisions, so they get the real answer.
+    ///
+    /// Magnitude only, so which way up the aeroplane is does not come into it.
+    /// </summary>
+    private static bool StalledNow(AircraftState s, AircraftSpec spec, Arena arena)
+    {
+        Vec2 airVel = s.Velocity - arena.Wind;
+        if (airVel.LengthSquared < 1e-12) return false;
+
+        return Math.Abs(Angles.Delta(airVel.Angle, s.Theta)) > spec.StallAlphaRad;
+    }
+
+    /// <summary>
+    /// Below this there is not enough air over the surfaces to start a maneuver
+    /// that cannot be abandoned half way. Rolling and swapping ends both commit.
+    /// </summary>
+    private const double MinimumAuthorityToCommit = 0.30;
 
     // --- Arena bounds -------------------------------------------------------
 

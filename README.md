@@ -10,7 +10,7 @@ ground war, no bombing runs. You start in the air.
 
 Milestones 0 and 1 are done. Milestone 2 is playable.
 
-- `Aerodrome.Core` flies and fights. 99 tests pass in about 20 seconds.
+- `Aerodrome.Core` flies and fights. 106 tests pass in about 20 seconds.
 - All three reversals work: the Immelmann, the Split-S, and the flat turn.
   Stall, spin, and spin recovery work.
 - Guns, ballistics, jams, and component damage work.

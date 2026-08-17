@@ -506,12 +506,29 @@ public sealed class PilotAi
         return false;
     }
 
+    /// <summary>
+    /// Nobody left to fight. Fly level, stay inside the box, and get the right way
+    /// up.
+    ///
+    /// Rolling upright is not a detail. Every other path through this class routes
+    /// through Steer, which rights the aeroplane when it has been inverted too
+    /// long. Cruise does not, so a survivor who happened to be upside down when the
+    /// last enemy went down stayed upside down for the rest of the round, on an
+    /// engine that starves after two seconds of negative G. Ed watched his wingmen
+    /// do exactly that after every win.
+    /// </summary>
     private static AircraftInput Cruise(Combatant self, Arena arena)
     {
         var s = self.State;
         double desired = Math.Cos(s.Theta) >= 0 ? 0.0 : Math.PI;
         AvoidBoundaries(s, arena, ref desired);
-        return new AircraftInput { ThrottleCommand = 0.75, HeadingCommand = Angles.Wrap0To2Pi(desired) };
+
+        return new AircraftInput
+        {
+            ThrottleCommand = 0.75,
+            HeadingCommand = Angles.Wrap0To2Pi(desired),
+            RollPressed = s.IsInverted && s.RollRemaining <= 0,
+        };
     }
 
     // --- Delayed picture of the target --------------------------------------

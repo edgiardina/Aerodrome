@@ -139,6 +139,13 @@ public sealed class AircraftState
     public double SpinTime;
 
     /// <summary>
+    /// The pilot asked for a roll or a flat turn this tick and the aeroplane had
+    /// too little air over its surfaces to give them one. Cleared every tick, so
+    /// it is purely a cue for the HUD to explain why nothing happened.
+    /// </summary>
+    public bool RollRefused;
+
+    /// <summary>
     /// Energy height in meters: the altitude this aircraft could reach by trading
     /// away all of its speed. The single most useful number in a dogfight.
     /// </summary>

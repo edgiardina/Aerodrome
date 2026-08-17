@@ -153,6 +153,38 @@ Note that the F4 panel resets to the defaults of whatever you are now flying.
 Its values are absolute numbers for YOUR aircraft, so the reference changes when
 you swap, and carrying them across would turn the triplane into a Camel.
 
+## Control surfaces need airspeed
+
+Ailerons, elevator and rudder work by deflecting air, so their power goes with
+dynamic pressure and therefore with the square of airspeed. Below flying speed
+they are cloth in a breeze.
+
+| Airspeed | Half roll takes |
+|---|---|
+| 29 km/h | refused |
+| 50 km/h | 0.73 s |
+| 68 km/h | 0.42 s |
+| 94 km/h and up | 0.35 s, the full rate |
+
+Fights happen between 200 and 400 km/h, which is fifteen to thirty times the
+stall speed, so none of this shows up in ordinary handling. It only bites where
+it should: hanging at the top of a botched loop, stalled, or spinning.
+
+**Refusing to start a roll is deliberate.** Beginning one you cannot finish would
+leave you on knife edge with no lift and no way out, which is worse than not
+answering. The HUD says `NO AIRSPEED` so it does not read as a broken control.
+
+**A stalled wing and a slow one are different.** The aircraft is momentarily
+stalled for something like fifteen percent of a hard-fought round, because that
+is what pulling to the edge of the envelope means. Blocking the roll outright
+whenever the stall flag is set would make the aeroplane feel broken during
+ordinary fighting. So a separated wing makes the ailerons mushy (a half roll
+takes about 0.83 s instead of 0.35), and only genuinely running out of airspeed
+stops them.
+
+The flat turn is stricter and refuses on either, because it is flown on rudder
+and aileron and a separated wing will not fly it at all.
+
 ## The dive limit
 
 Past the never-exceed speed the airframe takes on stress, and at full stress the

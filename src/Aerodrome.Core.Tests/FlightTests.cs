@@ -53,30 +53,46 @@ public class FlightTests(ITestOutputHelper output)
         }
     }
 
+    /// <summary>
+    /// The invariant that matters is NEVER MORE THAN ONE. That is the whole promise
+    /// of the coordinator, and it is checked on every single tick.
+    ///
+    /// Exactly one is the normal case but not an invariant, and asserting it tick
+    /// by tick was wrong. Orders are handed out before the world steps, so if the
+    /// engaged pilot is shot down during that step there is a one-tick window where
+    /// its orders still say Engaged while it is no longer alive. Nobody living is
+    /// pressing, the flight is not yet shaken, and the count is legitimately zero.
+    /// </summary>
     [Fact]
-    public void ExactlyOneMemberPressesTheAttack()
+    public void NeverMoreThanOneMemberPressesTheAttack()
     {
         var (match, flight, pilots, lone) = Setup(3);
 
-        int checks = 0;
+        int checks = 0, exactlyOne = 0, settled = 0;
+
         for (int t = 0; t < 120 * 30 && match.Outcome == RoundOutcome.InProgress; t++)
         {
             Fly(match, flight, pilots, lone, 1);
-
-            int alive = flight.AliveCount;
-            if (alive == 0) break;
+            if (flight.AliveCount == 0) break;
 
             int engaged = 0;
             foreach (var m in flight.Members)
                 if (m.IsAlive && flight.OrdersFor(m).Role == FlightRole.Engaged) engaged++;
 
-            // Nobody presses while the flight is regrouping after a loss. That is
-            // the one window where the answer is zero rather than one.
-            Assert.Equal(flight.IsShaken ? 0 : 1, engaged);
+            Assert.True(engaged <= 1, $"{engaged} members were pressing the attack at once");
             checks++;
+
+            if (flight.IsShaken) continue;
+
+            settled++;
+            if (engaged == 1) exactlyOne++;
         }
 
+        double rate = settled > 0 ? (double)exactlyOne / settled : 0;
+        output.WriteLine($"{checks} ticks checked, exactly one attacker on {rate:P1} of settled ticks");
+
         Assert.True(checks > 1000, $"only got {checks} ticks of fight to check");
+        Assert.True(rate > 0.95, $"somebody should be pressing almost always, got {rate:P1}");
     }
 
     [Fact]
