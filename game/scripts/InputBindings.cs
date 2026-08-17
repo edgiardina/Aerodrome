@@ -33,6 +33,7 @@ public static class InputBindings
     public const string Restart = "restart";
     public const string CycleEnemies = "cycle_enemies";
     public const string CycleWingmen = "cycle_wingmen";
+    public const string SwapSides = "swap_sides";
     public const string Mute = "mute";
     public const string Pause = "pause";
     public const string TuningPanel = "tuning_panel";
@@ -111,6 +112,7 @@ public static class InputBindings
         Action(TuningReset, Key.Home);
         Action(CycleEnemies, Key.F6);
         Action(CycleWingmen, Key.F7);
+        Action(SwapSides, Key.F8);
 
         // Mute. Needs to be one key, always available, no menu in the way. An
         // engine loop you cannot silence makes the game unusable next to anything

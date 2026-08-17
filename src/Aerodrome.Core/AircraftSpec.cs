@@ -57,6 +57,23 @@ public sealed record AircraftSpec
     // --- Maneuver limits ---
     /// <summary>Structural positive G limit. WW1 airframes were not strong.</summary>
     public double GLimit { get; init; } = 4.5;
+
+    /// <summary>
+    /// Never-exceed speed, m/s. Past this the airframe starts to come apart.
+    ///
+    /// This is not a detail. A wood, wire and fabric aeroplane in a long dive
+    /// really did shed its wings, and it killed a great many pilots: the Albatros
+    /// D.III lost lower wings often enough that its pilots were ordered not to
+    /// dive it hard. Without a limit here a dive is free speed with no decision
+    /// attached, and the whole energy game loses its only downside.
+    /// </summary>
+    public double NeverExceedSpeed { get; init; } = 90.0;
+
+    /// <summary>
+    /// Seconds at ten percent over the never-exceed speed before the wings go.
+    /// A clock rather than a wall, so the pilot gets a warning and a choice.
+    /// </summary>
+    public double OverspeedToleranceS { get; init; } = 3.5;
     /// <summary>
     /// Push authority as a fraction of pull authority. An aircraft pulls far harder
     /// than it pushes, which is exactly what makes inversion expensive.
@@ -269,6 +286,12 @@ public sealed record AircraftSpec
         TurnRateScale = 1.0,
         MaxSlewRateRad = 4.5,
 
+        // Level flight tops out near 260 km/h and a committed vertical dive reaches
+        // about 410, so 360 leaves the ordinary fight alone and only bites when the
+        // pilot points it at the ground and holds it there.
+        NeverExceedSpeed = 100.0,
+        OverspeedToleranceS = 5.5,
+
         // The nose answers now. Sustained turn rate is untouched, because the nose
         // still stops dead at the angle of attack the wing and the airframe allow.
         // What goes away is the wait: the aircraft used to take most of a second to
@@ -318,6 +341,13 @@ public sealed record AircraftSpec
         WeathercockGain = 2.0,
         ElevatorRateRad = 5.8,   // short fuselage, big elevator, famously twitchy
         ElevatorLeadFactor = 1.0,
+
+        // Lower than the Camel's, and deservedly. The Dr.I had a cantilever wing
+        // with no bracing wires, and after two fatal top-wing failures in 1917 the
+        // type was grounded until the spars were rebuilt. Diving it is a worse idea
+        // than diving a Camel, which is another reason not to fly one the same way.
+        NeverExceedSpeed = 90.0,
+        OverspeedToleranceS = 4.5,
 
         // And pays for it in speed. Three wings, six struts and all that wire.
         Cd0 = 0.031,

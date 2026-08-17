@@ -120,6 +120,33 @@ public sealed partial class CockpitPanel : Control
         float outboard = DialSpacing * 2.5f + DialRadius + 46f;
         AmmoCounter(new Vector2(centre - outboard, y), s, spec);
         GunTemperature(new Vector2(centre + outboard, y), s);
+
+        // The maker's plate. It is the only thing on screen that says which
+        // aeroplane you are sitting in, and with F8 swapping sides that matters.
+        MakersPlate(new Vector2(centre - outboard - 96f, y), spec);
+    }
+
+    private void MakersPlate(Vector2 centre, AircraftSpec spec)
+    {
+        var box = new Rect2(centre.X - 62f, centre.Y - 20f, 124f, 40f);
+
+        DrawRect(box, new Color(0.10f, 0.08f, 0.05f), true);
+        DrawRect(box, BrassDark, false, 1.4f);
+
+        // Two lines, because "Sopwith Camel (arcade)" does not fit on one and the
+        // bracket is a development detail the cockpit does not need.
+        string name = spec.Name;
+        int bracket = name.IndexOf('(');
+        if (bracket > 0) name = name[..bracket].TrimEnd();
+
+        int split = name.LastIndexOf(' ');
+        string top = split > 0 ? name[..split] : name;
+        string bottom = split > 0 ? name[(split + 1)..] : "";
+
+        DrawString(_font, new Vector2(box.Position.X, box.Position.Y + 17f), top,
+                   HorizontalAlignment.Center, box.Size.X, 11, Brass);
+        DrawString(_font, new Vector2(box.Position.X, box.Position.Y + 32f), bottom,
+                   HorizontalAlignment.Center, box.Size.X, 13, Dial);
     }
 
     // --- The board ------------------------------------------------------------
@@ -146,17 +173,23 @@ public sealed partial class CockpitPanel : Control
 
     private void AirspeedDial(Vector2 centre, AircraftSpec spec)
     {
-        // 0 to 320 km/h, which covers the arcade Camel with a little to spare.
-        const double max = 320.0;
+        // 0 to 450 km/h. The dial has to run past the never-exceed speed or the red
+        // arc that matters most falls off the end of the scale and never draws,
+        // which is what the first version did: 360 on a 320 dial.
+        const double max = 450.0;
         Bezel(centre, "A.S.I.", "km/h");
 
-        for (int v = 0; v <= 320; v += 40)
-            Tick(centre, v / max, v % 80 == 0, v.ToString());
+        for (int v = 0; v <= 450; v += 50)
+            Tick(centre, v / max, v % 100 == 0, (v / 10).ToString());
 
-        // The stall, marked in red the way a real dial marks the bottom end.
+        // The stall at the bottom and the never-exceed speed at the top, both in
+        // red, the way a real dial marks its two ends. The top one has to be here:
+        // a dive limit you cannot see coming is an ambush, not a decision.
         ArcBand(centre, 0.0, spec.StallSpeedSeaLevel * 3.6 / max, RedLine);
+        ArcBand(centre, spec.NeverExceedSpeed * 3.6 / max, 1.0, RedLine);
 
-        Pointer(centre, _asi / max, Needle);
+        var s = _sim.Player.State;
+        Pointer(centre, _asi / max, s.IsOverspeed ? RedLine : Needle);
     }
 
     private void AltimeterDial(Vector2 centre)

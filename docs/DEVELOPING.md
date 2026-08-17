@@ -128,6 +128,7 @@ before it will fire again, so it is a deliberate whack, not something you hold.
 | Opponent skill | `1` / `2` / `3` | | |
 | How many opponents | `F6` | | `F6` |
 | How many wingmen | `F7` | | `F7` |
+| Swap sides | `F8` | | `F8` |
 | Pause | `P` or `Esc` | Start | `P` |
 | Mute | `M` | Right stick click | `M` |
 | Restart | `R` | | `R` |
@@ -137,6 +138,42 @@ before it will fire again, so it is a deliberate whack, not something you hold.
 
 Start is pause, which is where anyone will look for it. Restart gave up its pad
 button and kept `R`.
+
+## Swapping sides
+
+`F8` puts you in the other aeroplane and gives the enemy yours. The maker's plate
+at the left of the instrument board says which one you are in.
+
+It is a different game, not a different paint job. The Camel is faster and can
+leave a fight it is losing. The Dr.I out-turns and out-climbs it and cannot be
+run down. Flying the other one is the quickest way to understand what the pilot
+you have been fighting was working with.
+
+Note that the F4 panel resets to the defaults of whatever you are now flying.
+Its values are absolute numbers for YOUR aircraft, so the reference changes when
+you swap, and carrying them across would turn the triplane into a Camel.
+
+## The dive limit
+
+Past the never-exceed speed the airframe takes on stress, and at full stress the
+wings come off. It builds while you are over the limit and sheds when you are
+under it, so a dive is a decision with a clock on it rather than a wall.
+
+- Level flight cannot reach it. The Camel tops out at 282 km/h against a 360
+  limit, so the only way to be over is to have dived.
+- A dive from the ceiling to the deck peaks near 410 km/h, which is about four
+  seconds of clock.
+- Easing off always works at anything the arena can produce. Levelling out with
+  the throttle still open does not count as easing off: you stay fast for
+  several seconds and the clock keeps running.
+
+`OVERSPEED` appears on the HUD with a stress bar, the airspeed needle turns red,
+and the red arc at the top of the A.S.I. is where the limit sits. Both numbers
+are on the F4 panel.
+
+This is period-accurate rather than decoration. Wood, wire and fabric aeroplanes
+shed wings in dives, and the Dr.I in particular was grounded in 1917 after two
+top-wing failures, which is why its limit here is lower than the Camel's.
 
 ## The instrument board
 

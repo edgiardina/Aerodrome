@@ -12,8 +12,11 @@ config/features=PackedStringArray("4.7", "C#", "Forward Plus")
 
 [display]
 
-window/size/viewport_width=1600
-window/size/viewport_height=900
+window/size/viewport_width=1920
+window/size/viewport_height=1080
+; Start maximised. The viewport size above is the design resolution and the
+; fallback for a small screen; on anything modern the window fills the desktop.
+window/size/mode=2
 window/stretch/mode="canvas_items"
 window/vsync/vsync_mode=1
 

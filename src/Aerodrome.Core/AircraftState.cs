@@ -173,6 +173,18 @@ public sealed class AircraftState
     /// </summary>
     public double AirframeIntegrity = 1.0;
 
+    /// <summary>
+    /// How far through the airframe's tolerance for overspeed it is, 0 to 1.
+    ///
+    /// Builds while past the never-exceed speed and falls back when you ease off,
+    /// so a dive is a decision with a clock on it rather than a wall you hit.
+    /// At 1.0 the wings come off.
+    /// </summary>
+    public double OverspeedStress;
+
+    /// <summary>True once the airframe has started to complain about the speed.</summary>
+    public bool IsOverspeed => OverspeedStress > 0.02;
+
     /// <summary>0 is untouched, 1 is about to fall out of the sky. Drives the smoke.</summary>
     public double VisibleDamage => 1.0 - AirframeIntegrity;
 

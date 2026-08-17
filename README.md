@@ -10,14 +10,16 @@ ground war, no bombing runs. You start in the air.
 
 Milestones 0 and 1 are done. Milestone 2 is playable.
 
-- `Aerodrome.Core` flies and fights. 90 tests pass in about 20 seconds.
+- `Aerodrome.Core` flies and fights. 99 tests pass in about 20 seconds.
 - All three reversals work: the Immelmann, the Split-S, and the flat turn.
   Stall, spin, and spin recovery work.
 - Guns, ballistics, jams, and component damage work.
 - An energy-aware AI at three skill levels flies through the same controls the
   player uses.
 - Two real aircraft: the Sopwith Camel and the Fokker Dr.I, with genuinely
-  different strengths.
+  different strengths. `F8` swaps which one you fly.
+- A dive limit. Past the never-exceed speed the airframe takes on stress and
+  eventually sheds its wings, so a dive is a decision rather than free speed.
 - Up to four opponents and three wingmen, each side flying as a coordinated
   flight rather than a crowd.
 - A period instrument board: airspeed, altimeter, tachometer, oil, fuel, bank.

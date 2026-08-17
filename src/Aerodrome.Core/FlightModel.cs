@@ -345,6 +345,8 @@ public static class FlightModel
         maxRate = Math.Max(maxRate, ElevatorRate(s, spec, airspeed, density, isPull, authority, stickScale));
 
         double step = Angles.Clamp(error, -maxRate * dt, maxRate * dt);
+        step = LimitByStructure(s, spec, airspeed, density, step);
+
         s.Theta = Angles.Wrap0To2Pi(s.Theta + step);
         s.SlewRateRad = step / dt;
     }
@@ -374,15 +376,8 @@ public static class FlightModel
         AircraftState s, AircraftSpec spec, double airspeed, double density,
         bool isPull, double authority, double stickScale)
     {
-        double limit = spec.StallAlphaRad * spec.ElevatorLeadFactor;
-
-        double q = 0.5 * density * airspeed * airspeed;
-        if (q > 1e-6 && spec.WingAreaM2 > 1e-9 && spec.LiftSlopePerRad > 1e-9)
-        {
-            double alphaAtGLimit = spec.GLimit * spec.MassKg * Atmosphere.Gravity
-                                 / (q * spec.WingAreaM2 * spec.LiftSlopePerRad);
-            limit = Math.Min(limit, alphaAtGLimit);
-        }
+        double limit = Math.Min(spec.StallAlphaRad * spec.ElevatorLeadFactor,
+                                StructuralAlpha(spec, airspeed, density));
 
         // Alpha is signed so that positive is toward the canopy, which is a pull.
         // A pull may keep going while alpha is under the limit. A push may keep
@@ -392,6 +387,57 @@ public static class FlightModel
 
         double rate = spec.ElevatorRateRad * authority * stickScale;
         return isPull ? rate : rate * spec.PushFactor;
+    }
+
+    /// <summary>
+    /// The angle of attack at which the wing makes exactly the structural G limit.
+    /// Infinite when there is no wing or no air, which is what the test bodies want.
+    /// </summary>
+    private static double StructuralAlpha(AircraftSpec spec, double airspeed, double density)
+    {
+        double q = 0.5 * density * airspeed * airspeed;
+        if (q < 1e-6 || spec.WingAreaM2 < 1e-9 || spec.LiftSlopePerRad < 1e-9)
+            return double.PositiveInfinity;
+
+        return spec.GLimit * spec.MassKg * Atmosphere.Gravity
+             / (q * spec.WingAreaM2 * spec.LiftSlopePerRad);
+    }
+
+    /// <summary>
+    /// Stop one tick of nose movement carrying the angle of attack past what the
+    /// airframe can take.
+    ///
+    /// ElevatorRate only GATES on the angle of attack at the start of the tick, and
+    /// a gate is not a limit. At diving speed the whole structural budget is about
+    /// three degrees, while one tick of elevator is two and a half, so a pull that
+    /// started legal finished at fourteen G against a limit of eight and a half.
+    /// On an undamaged aeroplane nothing checked it. On one with a single hit in
+    /// the wing it was instant death, which is not the trade the damage model
+    /// intends and is not something the pilot could see coming.
+    ///
+    /// Only the STRUCTURAL angle is clamped, never the stall angle. Above corner
+    /// speed the structure binds first, which is correct. Below it the structural
+    /// angle is the larger of the two and this does nothing, so pulling into a
+    /// stall and departing still works exactly as before.
+    /// </summary>
+    private static double LimitByStructure(
+        AircraftState s, AircraftSpec spec, double airspeed, double density, double step)
+    {
+        double allowed = StructuralAlpha(spec, airspeed, density);
+        if (double.IsPositiveInfinity(allowed)) return step;
+
+        double after = s.Alpha + s.CanopySign * step;
+        if (Math.Abs(after) <= allowed) return step;
+
+        // Already outside it, from a speed change or from the tail, and this step
+        // is bringing it back in. Leave it alone: recovering is not the thing that
+        // needs limiting.
+        if (Math.Abs(after) <= Math.Abs(s.Alpha)) return step;
+
+        double target = Math.Sign(after) * allowed;
+        double clamped = (target - s.Alpha) * s.CanopySign;
+
+        return Math.Abs(clamped) < Math.Abs(step) ? clamped : step;
     }
 
     /// <summary>

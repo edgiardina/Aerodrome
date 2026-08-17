@@ -49,6 +49,9 @@ public sealed partial class TuningPanel : Control
     private string _status = "";
     private double _statusFor;
 
+    /// <summary>Which aircraft the knob values are absolute values FOR.</summary>
+    private string _playerBaselineName = "";
+
     public bool Open { get; private set; }
 
     public static TuningPanel Create() => new()
@@ -91,7 +94,12 @@ public sealed partial class TuningPanel : Control
         public double Value;
 
         public bool IsDefault => Math.Abs(Value - PlayerBaseline) < Step * 0.01;
-        public double Fraction => Max > Min ? (Value - Min) / (Max - Min) : 0;
+
+        /// <summary>
+        /// Clamped, so a knob whose range is wrong can never draw its bar outside
+        /// the panel. One of them did exactly that.
+        /// </summary>
+        public double Fraction => Max > Min ? Math.Clamp((Value - Min) / (Max - Min), 0.0, 1.0) : 0.0;
     }
 
     private void Add(Knob knob)
@@ -141,6 +149,31 @@ public sealed partial class TuningPanel : Control
             Label = "tail weathercock", Key = "weather", Min = 0.0, Max = 6.0, Step = 0.1,
             Format = "F1",
             Read = s => s.WeathercockGain, Write = (s, v) => s with { WeathercockGain = v },
+        });
+        Add(new Knob
+        {
+            Label = "elevator rate", Key = "elevator", Min = 1.0, Max = 12.0, Step = 0.1,
+            Format = "F1", Unit = " rad/s",
+            Read = s => s.ElevatorRateRad, Write = (s, v) => s with { ElevatorRateRad = v },
+        });
+
+        // --- The dive limit.
+        Add(new Knob
+        {
+            // Range in km/h, because that is what the knob reads and writes. It was
+            // first written as 60 to 160, which are the m/s numbers, so the value
+            // sat at nearly three times full scale and the bar drew straight off
+            // the side of the panel.
+            Label = "never-exceed speed", Key = "vne", Min = 200, Max = 500, Step = 5,
+            Format = "F0", Unit = " km/h",
+            Read = s => s.NeverExceedSpeed * 3.6,
+            Write = (s, v) => s with { NeverExceedSpeed = v / 3.6 },
+        });
+        Add(new Knob
+        {
+            Label = "overspeed tolerance", Key = "vnetol", Min = 0.5, Max = 20.0, Step = 0.5,
+            Format = "F1", Unit = " s",
+            Read = s => s.OverspeedToleranceS, Write = (s, v) => s with { OverspeedToleranceS = v },
         });
 
         // --- How it holds energy.
@@ -251,6 +284,32 @@ public sealed partial class TuningPanel : Control
     {
         _targets.Clear();
         foreach (var a in sim.Aircraft) _targets.Add((a, a.Spec));
+
+        // Every knob is an absolute value on the PLAYER's aircraft, and the other
+        // side takes the same change as a ratio of its own baseline. Swap sides and
+        // that reference changes underneath the panel: leaving it alone would push
+        // the Camel's numbers onto a Dr.I as absolutes and quietly turn the triplane
+        // into a Camel, which is the exact thing the ratio logic exists to prevent.
+        //
+        // So the board is re-seeded from whatever you are now flying. Hand tuning
+        // does not survive a side swap, which is worth saying out loud.
+        var baseline = sim.Player.Spec;
+
+        if (baseline.Name != _playerBaselineName)
+        {
+            bool hadEdits = _playerBaselineName.Length > 0 && _knobs.Exists(k => !k.IsDefault);
+            _playerBaselineName = baseline.Name;
+
+            foreach (var knob in _knobs)
+            {
+                if (knob.Read is null) continue;
+                knob.PlayerBaseline = knob.Read(baseline);
+                knob.Value = Math.Clamp(knob.PlayerBaseline, knob.Min, knob.Max);
+            }
+
+            if (hadEdits) Note($"reset to {baseline.Name} defaults");
+        }
+
         Apply();
     }
 

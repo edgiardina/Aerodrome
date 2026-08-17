@@ -197,7 +197,55 @@ public static class Damage
             {
                 s.IsAlive = false;
                 s.Death = DeathCause.StructuralFailure;
+                return;
             }
         }
+
+        StepOverspeed(s, spec, dt);
+    }
+
+    /// <summary>
+    /// The dive limit. Past the never-exceed speed the airframe takes on stress,
+    /// and it sheds it again when you ease off.
+    ///
+    /// A clock rather than a wall, on purpose. A hard ceiling on speed reads as the
+    /// game refusing to let you dive; a clock lets you spend twenty knots of
+    /// overspeed for two seconds to make an escape, and know you are spending it.
+    /// A shot-up wing runs the clock faster, because the bracing wires are what
+    /// hold the thing together and there are fewer of them left.
+    /// </summary>
+    private static void StepOverspeed(AircraftState s, AircraftSpec spec, double dt)
+    {
+        double vne = spec.NeverExceedSpeed;
+        if (vne <= 1.0) return;
+
+        double over = s.Airspeed / vne - 1.0;
+
+        if (over > 0.0)
+        {
+            // Ten percent over for the full tolerance is exactly one unit of stress,
+            // and it scales from there, so thirty percent over goes three times
+            // faster.
+            double rate = over / (0.10 * Math.Max(0.2, spec.OverspeedToleranceS));
+            s.OverspeedStress += rate * dt / Math.Max(0.35, s.WingHealth);
+
+            if (s.OverspeedStress >= 1.0)
+            {
+                s.IsAlive = false;
+                s.Death = DeathCause.StructuralFailure;
+            }
+            return;
+        }
+
+        // Below the limit it recovers, but slower than it built. Two dives in quick
+        // succession should not both start from nothing.
+        //
+        // Not TOO slow, though. Levelling out of a dive does not stop you being fast
+        // straight away: a Camel at 410 km/h with the throttle still open takes
+        // about four seconds of drag to come back under the limit, and for those
+        // four seconds the aircraft looks level while the warning is up. That reads
+        // as the game complaining about nothing, so the clock has to be forgiving
+        // enough that easing off always works.
+        s.OverspeedStress = Math.Max(0.0, s.OverspeedStress - dt / spec.OverspeedToleranceS);
     }
 }

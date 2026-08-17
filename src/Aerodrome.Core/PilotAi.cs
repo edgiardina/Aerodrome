@@ -563,9 +563,19 @@ public sealed class PilotAi
 
         turnRate = EstimateTurnRate(index, snapshotVel, back);
 
+        // Catch the stale snapshot up to now in a STRAIGHT LINE, even though the
+        // turn rate is known, and hand the turn rate out separately for the
+        // tactical lead.
+        //
+        // Compounding the turn through the catch-up is more accurate and it wrecks
+        // the difficulty ladder, because the error it leaves is not random: a long
+        // reaction delay extrapolated around an arc lands a long way ahead of the
+        // target, which is roughly where lead pursuit wants to be. Reaction delay
+        // was buying position. It must only ever make the picture WRONG, never make
+        // it further ahead, or being slow is an advantage.
         double seconds = back / FlightModel.TickRate;
-        position = Advance(snapshotPos, snapshotVel, turnRate, seconds);
-        velocity = snapshotVel.Rotated(turnRate * seconds);
+        position = snapshotPos + snapshotVel * seconds;
+        velocity = snapshotVel;
     }
 
     /// <summary>Turn rate from two samples of the stale track, rad/s.</summary>

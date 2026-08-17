@@ -406,6 +406,22 @@ public sealed partial class Hud : Control
             y += 64;
         }
 
+        // The dive limit. It has to be loud, because unlike a stall there is no
+        // seat-of-the-pants cue for it on a screen, and the ending is abrupt.
+        if (s.IsOverspeed)
+        {
+            bool severe = s.OverspeedStress > 0.45;
+            Banner(size, y, "OVERSPEED", severe ? Danger : Warn, 26);
+            Banner(size, y + 26, "EASE OFF OR THE WINGS GO", severe ? Danger : Dim, 13);
+
+            const float barW = 220f;
+            float barX = (size.X - barW) * 0.5f;
+            DrawRect(new Rect2(barX, y + 44, barW, 6), new Color(Dim, 0.35f), true);
+            DrawRect(new Rect2(barX, y + 44, barW * (float)s.OverspeedStress, 6),
+                     severe ? Danger : Warn, true);
+            y += 62;
+        }
+
         if (s.IsSpinning) { Banner(size, y, "SPIN", Danger, 28); y += 30; }
         else if (s.IsStalled) { Banner(size, y, "STALL", Warn, 24); y += 26; }
 

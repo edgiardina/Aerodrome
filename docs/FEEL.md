@@ -407,3 +407,74 @@ Steady flight, ignoring the deliberate Far View transitions:
 |---|---|---|
 | speed spread | 0.37 to 1.08 | 0.02 to 0.13 |
 | worst jerk | ~41,300 m/s² every window | 44 to 4,900 m/s² |
+
+---
+
+## The dive that blew the aeroplane up
+
+Ed dove at full power and the aircraft came apart. He asked whether that was
+wing shedding or max Q. It was neither. It was a bug.
+
+### The bug
+
+`ElevatorRate` GATES on the angle of attack at the start of the tick, and a gate
+is not a limit. At diving speed the whole structural angle-of-attack budget is
+about three degrees, while one tick of elevator at 5.5 rad/s is two and a half.
+So a pull that started legal finished well past the limit.
+
+Measured, undamaged Camel, full-power dive then a maximum pull:
+
+| wing health | peak G | outcome |
+|---|---|---|
+| 1.00 | **14.2 G** | survives, because nothing checks G on an intact wing |
+| 0.94 | 11.4 G | structural failure |
+| 0.80 | 9.7 G | structural failure |
+
+The limit is 8.5. So a single hit anywhere in the wing turned any hard pull-out
+into instant death, and the pilot had no way to see it coming. That is what
+happened.
+
+`LimitByStructure` now clamps the per-tick step so the angle of attack cannot
+cross the structural limit at all. Peak G on the same test is 7.7.
+
+Only the STRUCTURAL angle is clamped, never the stall angle. Above corner speed
+the structure binds first, which is correct; below it the structural angle is the
+larger of the two, so the clamp does nothing and pulling into a stall and
+departing still works exactly as before.
+
+### The feature that was missing
+
+There was no never-exceed speed at all. The Camel would happily sit at 410 km/h
+with no consequence, which makes a dive free speed with no decision attached.
+
+`NeverExceedSpeed` and `OverspeedToleranceS` add a clock. Stress builds above the
+limit at a rate proportional to how far over, sheds below it, and at full stress
+the wings go. A shot-up wing runs the clock faster.
+
+The numbers, for the arcade Camel at 360 km/h and 5.5 s:
+
+| situation | result |
+|---|---|
+| level, full throttle, 30 s | 282 km/h, no stress at all |
+| dive from the arena ceiling | peaks near 410, about 4 s of clock |
+| level out and close the throttle | always survivable |
+| level out and leave the throttle open | 6 s over the limit, survivable but close |
+| hold a vertical dive from 3800 m | wings off at about 8 s |
+
+That last row needs several thousand metres of height, which the arena does not
+have, so it is reachable only in a test.
+
+### The thing that looked wrong and was not
+
+Ed followed up: "it seems like you are overspeeding on level flight."
+
+He was reading a capture screenshot, and the screenshot was my fault. To force
+the warning for the shot I had teleported the velocity, which produced a Camel
+flying straight and level at 440 km/h with a structural warning on it. That state
+cannot occur: level flight tops out at 282. The capture now forces a real dive
+attitude instead, and puts the speed back afterwards so later frames are clean.
+
+There is a real version of the same picture, though, and it is correct: pull out
+of a dive and you are level while still over the limit, because drag takes a few
+seconds to catch up. The tolerance was raised from 3.5 s to 5.5 s so that easing
+off always saves you within that window.

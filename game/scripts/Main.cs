@@ -56,6 +56,9 @@ public sealed partial class Main : Node3D
 
     private bool _paused;
 
+    /// <summary>Which aircraft you fly. F8 swaps sides. The enemy takes the other.</summary>
+    private bool _playerFliesCamel = true;
+
     // --- Automated capture, for checking the build without a human at the keyboard.
     // Run: godot --path game -- --shot <dir>
     private string? _shotDir;
@@ -129,6 +132,7 @@ public sealed partial class Main : Node3D
         (6.60, "03-half-loop",        false),
         (11.50, "04-far-view",        true),
         (16.00, "05-dogfight",        false),
+        (18.60, "05b-overspeed",      false),
         (21.00, "06-dogfight-late",   false),
         (23.80, "07-tracers",         false),
         (28.00, "08-smoking",         false),
@@ -141,6 +145,7 @@ public sealed partial class Main : Node3D
         (46.50, "14-flight-far",      true),
         (48.20, "15-flight-near",     false),
         (49.60, "16-tuning-panel",    false),
+        (52.40, "17-flying-the-dr1",  false),
     };
 
     private void RunCapture(double delta)
@@ -150,6 +155,31 @@ public sealed partial class Main : Node3D
         // Force damage on so the capture always exercises the smoke and fire trails.
         // Capture mode only: nothing here runs in a normal session.
         var player = _sim.Player.State;
+
+        // Drive it past the never-exceed speed so the overspeed warning and the red
+        // arc on the airspeed dial both get looked at.
+        //
+        // A real dive attitude, not just a fast level aeroplane. The first version
+        // only forced the velocity, which produced a picture of a Camel flying
+        // straight and level at 440 km/h with a structural warning on it. That is
+        // not a thing that can happen: level flight tops out at 282 km/h against a
+        // 360 limit. A screenshot that shows an impossible state is worse than no
+        // screenshot.
+        if (_captureTime is > 17.4 and < 18.7)
+        {
+            const double diveAngle = -1.15;   // about 66 degrees nose down
+            player.Theta = Angles.Wrap0To2Pi(diveAngle);
+            player.Velocity = Vec2.FromAngle(diveAngle, 116.0);
+        }
+
+        // Put it back afterwards, so one forced frame does not leave every later
+        // shot carrying speed the aeroplane could never have built.
+        if (_captureTime is > 18.75 and < 18.85)
+        {
+            player.Velocity = Vec2.FromAngle(0.0, 68.0);
+            player.Theta = 0.0;
+            player.OverspeedStress = 0.0;
+        }
         if (_captureTime is > 26.0 and < 26.2) { player.EngineHealth = 0.25; player.AirframeIntegrity = 0.45; }
         if (_captureTime is > 30.0 and < 30.2) { player.OnFire = true; player.FireTime = 0; }
 
@@ -201,7 +231,15 @@ public sealed partial class Main : Node3D
             StartMatch();
         }
 
-        if (_captureTime > 48.9 && !_tuning.Open) _tuning.Toggle();
+        if (_captureTime is > 48.9 and < 50.4 && !_tuning.Open) _tuning.Toggle();
+
+        // Swap sides and fly the triplane, so the other cockpit gets looked at too.
+        if (_captureTime > 50.6 && _playerFliesCamel)
+        {
+            if (_tuning.Open) _tuning.Toggle();
+            _playerFliesCamel = false;
+            StartMatch();
+        }
 
         if (_nextShot >= CaptureSchedule.Length)
         {
@@ -317,7 +355,15 @@ public sealed partial class Main : Node3D
         uint seed = (uint)(_roundNumber * 7919 + 13);
 
         var arena = TestArena();
-        var spec = AircraftSpec.CamelArcade;
+
+        // Which side you are on. The two aircraft are deliberately not equivalent,
+        // so this is a different game rather than a different paint job: the Camel
+        // is the faster one and can leave a fight, the Dr.I out-turns and out-climbs
+        // it and cannot be run down. Flying the other one is the quickest way to
+        // find out what the pilot you have been fighting was dealing with.
+        var spec = _playerFliesCamel ? AircraftSpec.CamelArcade : AircraftSpec.FokkerDr1Arcade;
+        var enemySpec = _playerFliesCamel ? AircraftSpec.FokkerDr1Arcade : AircraftSpec.CamelArcade;
+
         _sim = new SimRunner(arena, seed);
 
         _pilots.Clear();
@@ -348,12 +394,9 @@ public sealed partial class Main : Node3D
             _pilots.Add(new PilotAi(_skill, seed + 401u + (uint)i * 53u));
         }
 
-        // The enemy flies triplanes. Two identical aircraft can never disengage
-        // from each other, so every fight is a turn fight to the death. The Dr.I
-        // out-turns and out-climbs the Camel and is slower in level flight, which
-        // means each pilot has something the other cannot answer, and running away
-        // becomes a real option instead of a wish.
-        var enemySpec = AircraftSpec.FokkerDr1Arcade;
+        // Two identical aircraft can never disengage from each other, so every fight
+        // is a turn fight to the death. Giving the sides genuinely different
+        // strengths is what creates the option to run, whichever one you are in.
 
         // The capture routine is scripted against one opponent for most of its run.
         int enemies = _autoPilot is not null ? _captureEnemies : _enemyCount;
@@ -570,6 +613,15 @@ public sealed partial class Main : Node3D
         {
             _wingmanCount = (_wingmanCount + 1) % (MaxWingmen + 1);
             GD.Print($"[aerodrome] {_wingmanCount} wingmen, starting a new round");
+            StartMatch();
+            return;
+        }
+
+        if (Input.IsActionJustPressed(InputBindings.SwapSides))
+        {
+            _playerFliesCamel = !_playerFliesCamel;
+            GD.Print($"[aerodrome] you now fly the " +
+                     $"{(_playerFliesCamel ? "Sopwith Camel" : "Fokker Dr.I")}, starting a new round");
             StartMatch();
         }
     }

@@ -28,9 +28,18 @@ public sealed partial class ChaseCamera : Camera3D
     /// </summary>
     /// Static rather than const so the live tuning panel can move it while you fly.
     /// How close the camera sits is a gameplay decision, not a constant.
-    public static double NearViewWidthM = 250.0;
-    /// <summary>Widest the duel framing may pull back before it stops trying.</summary>
-    public static double MaxDuelWidthM = 520.0;
+    public static double NearViewWidthM = 210.0;
+
+    /// <summary>
+    /// Widest the duel framing may pull back before it stops trying.
+    ///
+    /// Kept close to the resting width on purpose. The old 520 meant that any time
+    /// the other aeroplane was anywhere near, the view doubled in size and the
+    /// aircraft became specks, which is the opposite of what a close fight wants.
+    /// The camera should sit at its tightest nearly all the time and give up a
+    /// little of that only when both aircraft genuinely will not fit.
+    /// </summary>
+    public static double MaxDuelWidthM = 300.0;
     /// <summary>Range within which the camera frames both fighters instead of just the player.</summary>
     public static double FramingRangeM = 330.0;
 
@@ -142,7 +151,15 @@ public sealed partial class ChaseCamera : Camera3D
         // what the camera should follow, and it is smooth by construction.
         var velocity = new Vector2((float)prs.VelocityX, (float)prs.VelocityY);
         float speedFraction = Math.Min(1f, velocity.Length() / 75f);
-        Vector2 lead = velocity.Normalized() * (float)(NearViewWidthM * 0.25 * speedFraction);
+
+        // The lead is a fraction of the visible extent IN EACH AXIS, not a single
+        // distance. The screen is 16:9, so a lead sized off the width is nearly the
+        // whole half-height once it points upward, and a full-power dive shoved the
+        // aircraft clean off the top of the frame. Half way to the edge is plenty.
+        var dir = velocity.Normalized();
+        float halfW = (float)(_visibleWidth * 0.5);
+        float halfH = (float)(VisibleHeightM * 0.5);
+        Vector2 lead = new Vector2(dir.X * halfW, dir.Y * halfH) * (0.5f * speedFraction);
 
         Vector2 desired = playerPos + lead;
         double width = NearViewWidthM;
@@ -172,7 +189,7 @@ public sealed partial class ChaseCamera : Camera3D
 
                 // Max() rather than the bare constant: the tuning panel can push the
                 // resting width past the duel limit, and Clamp throws if it does.
-                double duelWidth = Math.Clamp(separation * 2.1 + 90.0,
+                double duelWidth = Math.Clamp(separation * 1.4 + 60.0,
                                               NearViewWidthM, Math.Max(MaxDuelWidthM, NearViewWidthM));
 
                 desired = desired.Lerp(duel, blend);
