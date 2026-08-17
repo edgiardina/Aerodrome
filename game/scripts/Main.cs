@@ -86,7 +86,8 @@ public sealed partial class Main : Node3D
         (23.80, "07-tracers",         false),
         (28.00, "08-smoking",         false),
         (31.50, "09-burning",         false),
-        (34.50, "10-closeup",         false),
+        (34.40, "10-closeup-camel",   false),
+        (35.20, "11-closeup-dr1",     false),
         (37.60, "11-explosion",       false),
         (39.50, "12-wreck-falling",   false),
         (43.00, "13-wreck-burning",   false),
@@ -102,13 +103,30 @@ public sealed partial class Main : Node3D
         if (_captureTime is > 26.0 and < 26.2) { player.EngineHealth = 0.25; player.AirframeIntegrity = 0.45; }
         if (_captureTime is > 30.0 and < 30.2) { player.OnFire = true; player.FireTime = 0; }
 
-        // Close in on the airframe so the model itself can be checked by eye.
-        if (_captureTime > 33.0 && _camera.ForcedWidthM is null)
+        // Close in on each airframe in turn so both models can be checked by eye.
+        // Orientation mistakes are invisible at fighting range and obvious here.
+        if (_captureTime is > 33.0 and < 35.4)
         {
             player.OnFire = false;
             player.EngineHealth = 1.0;
             player.AirframeIntegrity = 1.0;
             _camera.ForcedWidthM = 70.0;
+            _camera.ForcedCenterM = null;
+
+            // Hold the enemy level and alongside, so the close-up is comparable.
+            var foe = _sim.Aircraft[1].State;
+            if (_captureTime > 34.6)
+            {
+                foe.Position = new Vec2(player.Position.X + 40, player.Position.Y);
+                foe.Velocity = player.Velocity;
+                foe.Theta = 0;
+                // Force it upright too. Heading alone leaves whatever bank the AI
+                // happened to be in, which reads as a broken model export.
+                foe.RollAngle = 0;
+                foe.RollRemaining = 0;
+                foe.CanopySign = 1;
+                _camera.ForcedCenterM = new Vector2((float)foe.Position.X, (float)foe.Position.Y);
+            }
         }
 
         // Then drop to low level and shoot the player down, so the whole death is

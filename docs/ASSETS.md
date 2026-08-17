@@ -42,7 +42,7 @@ Rules:
     -NoseAxis '-X' -Drop 'ground' -Budget 12000 -TextureSize 1024 -Pitch -13
 
 .\tools\prepare-model.ps1 .\assets\source\dr1\scene.gltf -Name dr1 `
-    -RotateZ -90 -NoseAxis '+X' -Drop '0' -Budget 12000 -TextureSize 1024 -Length 5.77
+    -RotateZ -90 -NoseAxis '-X' -Drop '0' -Budget 12000 -TextureSize 1024 -Length 5.77
 ```
 
 Both needed something different, which is the point of inspecting first. The

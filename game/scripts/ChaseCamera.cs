@@ -51,6 +51,9 @@ public sealed partial class ChaseCamera : Camera3D
     /// <summary>Capture-only zoom override, in meters of visible width. Null is normal.</summary>
     public double? ForcedWidthM { get; set; }
 
+    /// <summary>Capture-only look-at override, so a shot can frame something else.</summary>
+    public Vector2? ForcedCenterM { get; set; }
+
     public double VisibleWidthM => _visibleWidth;
     public double VisibleHeightM => _visibleWidth / Aspect;
     public Vector2 CenterM => _center;
@@ -107,7 +110,7 @@ public sealed partial class ChaseCamera : Camera3D
         {
             var prs0 = _sim.Player.Interpolated(alpha);
             _targetWidth = forced;
-            _targetCenter = new Vector2((float)prs0.X, (float)prs0.Y);
+            _targetCenter = ForcedCenterM ?? new Vector2((float)prs0.X, (float)prs0.Y);
             return;
         }
 
